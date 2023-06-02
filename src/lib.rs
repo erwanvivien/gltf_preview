@@ -4,6 +4,9 @@ use winit::{
     window::{WindowBuilder, WindowId},
 };
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+
 fn event_handler(
     event: Event<()>,
     _event_loop_window_target: &EventLoopWindowTarget<()>,
@@ -35,10 +38,45 @@ fn event_handler(
     }
 }
 
-pub fn run() {
+#[cfg(target_arch = "wasm32")]
+fn init_log() {
+    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+    console_log::init_with_level(log::Level::Warn).expect("Couldn't initialize logger");
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn init_log() {
     env_logger::init();
+}
+
+#[cfg(target_arch = "wasm32")]
+fn init_window(window: &winit::window::Window) {
+    // Winit prevents sizing with CSS, so we have to set
+    // the size manually when on web.
+    use winit::dpi::PhysicalSize;
+    window.set_inner_size(PhysicalSize::new(600, 400));
+
+    use winit::platform::web::WindowExtWebSys;
+    web_sys::window()
+        .and_then(|win| win.document())
+        .and_then(|doc| {
+            let dst = doc.get_element_by_id("body")?;
+            let canvas = web_sys::Element::from(window.canvas());
+            dst.append_child(&canvas).ok()?;
+            Some(())
+        })
+        .expect("Couldn't append canvas to document body.");
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
+pub fn run() {
+    init_log();
+
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
+
+    #[cfg(target_arch = "wasm32")]
+    init_window(&window);
 
     event_loop.run(move |event, event_loop_window_target, control_flow| {
         event_handler(event, event_loop_window_target, control_flow, window.id())
