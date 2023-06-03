@@ -1,3 +1,3 @@
 fn main() {
-    mario_skurt::run();
+    pollster::block_on(mario_skurt::run());
 }
