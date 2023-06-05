@@ -33,3 +33,8 @@ wasm = [
     "dep:wasm-bindgen-futures",
     "dep:web-sys",
 ]
+
+
+# Debugging
+debug_gpu = []
+debug_all = ["debug_gpu"]

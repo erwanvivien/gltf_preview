@@ -1,6 +1,8 @@
 use wgpu::{Adapter, Instance, Surface, TextureFormat};
 use winit::{dpi::PhysicalSize, window::Window};
 
+mod render_pipeline;
+
 pub struct DrawingContext {
     surface: wgpu::Surface,
     device: wgpu::Device,
@@ -8,6 +10,8 @@ pub struct DrawingContext {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     window: Window,
+
+    render_pipeline: wgpu::RenderPipeline,
 
     fill_color: wgpu::Color,
 }
@@ -96,6 +100,8 @@ impl DrawingContext {
 
         surface.configure(&device, &config);
 
+        let render_pipeline = render_pipeline::create_main_render_pipeline(&device, &config);
+
         Self {
             config,
             device,
@@ -103,6 +109,8 @@ impl DrawingContext {
             size,
             surface,
             window,
+
+            render_pipeline,
 
             fill_color: wgpu::Color::BLACK,
         }
@@ -137,7 +145,7 @@ impl DrawingContext {
             });
 
         {
-            let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
@@ -149,6 +157,9 @@ impl DrawingContext {
                 })],
                 depth_stencil_attachment: None,
             });
+
+            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.draw(0..3, 0..1);
         }
 
         // submit will accept anything that implements IntoIter
