@@ -1,7 +1,10 @@
 use wgpu::{Adapter, Instance, Surface, TextureFormat};
 use winit::{dpi::PhysicalSize, window::Window};
 
+use self::vertex::Vertex;
+
 mod render_pipeline;
+mod vertex;
 
 pub struct DrawingContext {
     surface: wgpu::Surface,
@@ -12,6 +15,8 @@ pub struct DrawingContext {
     window: Window,
 
     render_pipeline: wgpu::RenderPipeline,
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
 
     fill_color: wgpu::Color,
 }
@@ -102,6 +107,19 @@ impl DrawingContext {
 
         let render_pipeline = render_pipeline::create_main_render_pipeline(&device, &config);
 
+        use wgpu::util::DeviceExt;
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(Vertex::TRIANGLE_2D),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(Vertex::TRIANGLE_2D_INDICES),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+
         Self {
             config,
             device,
@@ -111,6 +129,8 @@ impl DrawingContext {
             window,
 
             render_pipeline,
+            vertex_buffer,
+            index_buffer,
 
             fill_color: wgpu::Color::BLACK,
         }
@@ -159,7 +179,9 @@ impl DrawingContext {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.draw(0..3, 0..1);
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.draw_indexed(0..6, 0, 0..1);
         }
 
         // submit will accept anything that implements IntoIter

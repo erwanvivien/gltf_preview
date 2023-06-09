@@ -1,5 +1,7 @@
 use wgpu::{Device, SurfaceConfiguration};
 
+use crate::context::vertex::Vertex;
+
 const PRIMITIVE_STATE: wgpu::PrimitiveState = wgpu::PrimitiveState {
     topology: wgpu::PrimitiveTopology::TriangleList,
     strip_index_format: None,
@@ -27,7 +29,7 @@ pub(super) fn create_main_render_pipeline(
     let vertex_state = wgpu::VertexState {
         module: &main_shader,
         entry_point: "vs_main",
-        buffers: &[],
+        buffers: &[Vertex::desc()],
     };
 
     let fragment_state = wgpu::FragmentState {
