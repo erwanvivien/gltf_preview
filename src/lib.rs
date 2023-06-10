@@ -9,6 +9,7 @@ use winit::{
 use wasm_bindgen::prelude::*;
 
 mod context;
+pub mod model;
 
 fn event_handler(
     event: Event<()>,

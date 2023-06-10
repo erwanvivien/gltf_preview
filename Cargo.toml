@@ -25,6 +25,8 @@ web-sys = { version = "0.3", features = [
 ], optional = true }
 pollster = { version = "0.3.0" }
 bytemuck = { version = "1.13.1", features = ["derive"] }
+gltf = { version = "1.2.0", features = ["extras", "names", "import"] }
+glam = { version = "0.24.0", features = ["bytemuck"] }
 
 [features]
 wasm = [
@@ -38,4 +40,5 @@ wasm = [
 
 # Debugging
 debug_gpu = []
-debug_all = ["debug_gpu"]
+debug_gltf = []
+debug_all = ["debug_gpu", "debug_gltf"]
