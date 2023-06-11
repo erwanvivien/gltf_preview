@@ -3,6 +3,7 @@ use winit::{dpi::PhysicalSize, window::Window};
 
 use self::vertex::Vertex;
 
+mod camera;
 mod render_pipeline;
 mod vertex;
 
@@ -13,6 +14,8 @@ pub struct DrawingContext {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     window: Window,
+
+    camera: camera::Camera,
 
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
@@ -105,7 +108,14 @@ impl DrawingContext {
 
         surface.configure(&device, &config);
 
-        let render_pipeline = render_pipeline::create_main_render_pipeline(&device, &config);
+        let camera = camera::Camera::new(&window, &device);
+        camera.update_projection_matrix(&queue);
+
+        let render_pipeline = render_pipeline::create_main_render_pipeline(
+            &device,
+            &config,
+            camera.bind_group_layout(),
+        );
 
         use wgpu::util::DeviceExt;
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -127,6 +137,8 @@ impl DrawingContext {
             size,
             surface,
             window,
+
+            camera,
 
             render_pipeline,
             vertex_buffer,
