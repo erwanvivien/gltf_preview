@@ -1,4 +1,5 @@
 use context::DrawingContext;
+use model::Scene;
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
@@ -117,7 +118,7 @@ fn init_window(window: &winit::window::Window) {
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
-pub async fn run() {
+pub async fn run(scene: Scene) {
     init_log();
 
     let event_loop = EventLoop::new();
@@ -126,7 +127,7 @@ pub async fn run() {
     #[cfg(target_arch = "wasm32")]
     init_window(&window);
 
-    let mut drawing_context = DrawingContext::new(window).await;
+    let mut drawing_context = DrawingContext::new(window, scene).await;
 
     event_loop.run(move |event, event_loop_window_target, control_flow| {
         event_handler(

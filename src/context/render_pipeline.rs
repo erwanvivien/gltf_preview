@@ -1,7 +1,7 @@
 use wgpu::{Device, SurfaceConfiguration};
 
 use crate::context::depth_texture::Texture;
-use crate::context::vertex::Vertex;
+use crate::model::Vertex;
 
 const PRIMITIVE_STATE: wgpu::PrimitiveState = wgpu::PrimitiveState {
     topology: wgpu::PrimitiveTopology::TriangleList,
@@ -20,11 +20,12 @@ pub(super) fn create_main_render_pipeline(
     device: &Device,
     config: &SurfaceConfiguration,
     camera_bind_group_layout: &wgpu::BindGroupLayout,
+    texture_bind_group_layout: &wgpu::BindGroupLayout,
 ) -> wgpu::RenderPipeline {
     let main_shader = device.create_shader_module(wgpu::include_wgsl!("main_shader.wgsl"));
     let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("Main Render Pipeline Layout"),
-        bind_group_layouts: &[camera_bind_group_layout],
+        bind_group_layouts: &[camera_bind_group_layout, texture_bind_group_layout],
         push_constant_ranges: &[],
     });
 

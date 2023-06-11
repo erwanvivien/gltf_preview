@@ -1,13 +1,11 @@
 use wgpu::{Adapter, Instance, Surface, TextureFormat};
 use winit::{dpi::PhysicalSize, window::Window};
 
-use self::vertex::Vertex;
-use crate::context::depth_texture::Texture;
+use crate::{context::depth_texture::Texture, model::Scene};
 
 mod camera;
 mod depth_texture;
 mod render_pipeline;
-mod vertex;
 
 pub struct DrawingContext {
     surface: wgpu::Surface,
@@ -22,7 +20,10 @@ pub struct DrawingContext {
 
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
+    index_buffer: Option<wgpu::Buffer>,
+    index_count: u32,
+
+    color_bind_group: wgpu::BindGroup,
 
     fill_color: wgpu::Color,
 }
@@ -55,7 +56,7 @@ async fn get_adaptater(instance: &Instance, surface: &Surface) -> Adapter {
 }
 
 impl DrawingContext {
-    pub async fn new(window: Window) -> Self {
+    pub async fn new(window: Window, scene: Scene) -> Self {
         let device_descriptor = wgpu::DeviceDescriptor {
             features: wgpu::Features::empty(),
             #[cfg(not(feature = "webgl"))]
@@ -114,24 +115,77 @@ impl DrawingContext {
         let camera = camera::Camera::new(&window, &device);
         camera.update_projection_matrix(&queue);
 
+        use wgpu::util::DeviceExt;
+        let mesh = &scene.nodes[1].meshes[0].primitives[0];
+        let texture = &mesh.material.texture;
+
+        let texture = texture.as_ref().unwrap();
+        let color_texture = Texture::create_texture_from_image(&device, &queue, &texture);
+
+        let color_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            multisampled: false,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                ],
+                label: Some("Color Bind Group Layout"),
+            });
+
+        let color_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &color_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&color_texture.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&color_texture.sampler),
+                },
+            ],
+            label: Some("Color Bind Group"),
+        });
+
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(mesh.vertices.as_slice()),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        let index_buffer = mesh.indices.as_ref().map(|indices| {
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                contents: bytemuck::cast_slice(indices.as_slice()),
+                usage: wgpu::BufferUsages::INDEX,
+            })
+        });
+
         let render_pipeline = render_pipeline::create_main_render_pipeline(
             &device,
             &config,
             camera.bind_group_layout(),
+            &color_bind_group_layout,
         );
 
-        use wgpu::util::DeviceExt;
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(Vertex::TRIANGLE_2D),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(Vertex::TRIANGLE_2D_INDICES),
-            usage: wgpu::BufferUsages::INDEX,
-        });
+        let index_count = mesh
+            .indices
+            .as_ref()
+            .map(Vec::len)
+            .unwrap_or(mesh.vertices.len()) as u32;
 
         let depth_texture = Texture::create_depth_texture(&device, &config);
 
@@ -149,6 +203,9 @@ impl DrawingContext {
             render_pipeline,
             vertex_buffer,
             index_buffer,
+            index_count,
+
+            color_bind_group,
 
             fill_color: wgpu::Color::BLACK,
         }
@@ -206,9 +263,17 @@ impl DrawingContext {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            render_pass.draw_indexed(0..6, 0, 0..1);
+            render_pass.set_bind_group(0, self.camera.bind_group(), &[]);
+            render_pass.set_bind_group(1, &self.color_bind_group, &[]);
+
+            if let Some(index_buffer) = &self.index_buffer {
+                render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+                render_pass.draw_indexed(0..self.index_count, 0, 0..1);
+            } else {
+                render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                render_pass.draw(0..self.index_count, 0..1);
+            }
         }
 
         // submit will accept anything that implements IntoIter
