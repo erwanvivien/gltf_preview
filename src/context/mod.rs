@@ -263,8 +263,8 @@ impl DrawingContext {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, self.camera.bind_group(), &[]);
-            render_pass.set_bind_group(1, &self.color_bind_group, &[]);
+            render_pass.set_bind_group(0, &self.color_bind_group, &[]);
+            render_pass.set_bind_group(1, self.camera.bind_group(), &[]);
 
             if let Some(index_buffer) = &self.index_buffer {
                 render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
