@@ -1,5 +1,6 @@
 use wgpu::{Device, SurfaceConfiguration};
 
+use crate::context::depth_texture::Texture;
 use crate::context::vertex::Vertex;
 
 const PRIMITIVE_STATE: wgpu::PrimitiveState = wgpu::PrimitiveState {
@@ -49,7 +50,13 @@ pub(super) fn create_main_render_pipeline(
         vertex: vertex_state,
         fragment: Some(fragment_state),
         primitive: PRIMITIVE_STATE,
-        depth_stencil: None,
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: Texture::DEPTH_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::Less,
+            stencil: Default::default(),
+            bias: Default::default(),
+        }),
         multisample: wgpu::MultisampleState {
             count: 1,
             mask: u64::MAX,

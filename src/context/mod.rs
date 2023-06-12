@@ -2,8 +2,10 @@ use wgpu::{Adapter, Instance, Surface, TextureFormat};
 use winit::{dpi::PhysicalSize, window::Window};
 
 use self::vertex::Vertex;
+use crate::context::depth_texture::Texture;
 
 mod camera;
+mod depth_texture;
 mod render_pipeline;
 mod vertex;
 
@@ -14,6 +16,7 @@ pub struct DrawingContext {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     window: Window,
+    depth_texture: Texture,
 
     camera: camera::Camera,
 
@@ -130,6 +133,8 @@ impl DrawingContext {
             usage: wgpu::BufferUsages::INDEX,
         });
 
+        let depth_texture = Texture::create_depth_texture(&device, &config);
+
         Self {
             config,
             device,
@@ -137,6 +142,7 @@ impl DrawingContext {
             size,
             surface,
             window,
+            depth_texture,
 
             camera,
 
@@ -158,6 +164,8 @@ impl DrawingContext {
         self.config.width = new_size.width;
         self.config.height = new_size.height;
         self.surface.configure(&self.device, &self.config);
+        // No need to destroy old depth texture, it will be dropped
+        self.depth_texture = Texture::create_depth_texture(&self.device, &self.config);
     }
 
     pub fn reconfigure(&mut self) {
@@ -187,7 +195,14 @@ impl DrawingContext {
                         store: true,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1f32),
+                        store: true,
+                    }),
+                    stencil_ops: None,
+                }),
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
