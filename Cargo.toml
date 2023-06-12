@@ -41,4 +41,5 @@ wasm = [
 # Debugging
 debug_gpu = []
 debug_gltf = []
-debug_all = ["debug_gpu", "debug_gltf"]
+debug_window = []
+debug_all = ["debug_gpu", "debug_gltf", "debug_window"]

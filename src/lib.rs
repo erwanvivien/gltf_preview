@@ -47,8 +47,8 @@ fn event_handler(
                 ..
             } => *control_flow = ControlFlow::Exit,
             WindowEvent::CursorMoved { position, .. } => {
-                #[cfg(feature = "debug_info")]
-                log::info!("Mouse moved to {:?}", position);
+                #[cfg(feature = "debug_window")]
+                log::trace!("Mouse moved to {:?}", position);
 
                 let size = drawing_context.size();
                 let size = winit::dpi::PhysicalSize::new(size.width as f64, size.height as f64);
