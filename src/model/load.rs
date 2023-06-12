@@ -15,7 +15,8 @@ fn parse_texture(global_gltf: &GlobalGltf, texture: &gltf::Texture) -> Texture {
 
 fn parse_material(global_gltf: &GlobalGltf, material: &gltf::Material) -> MeshMaterial {
     #[cfg(feature = "debug_gltf")]
-    println!("    > Material: {:?}", material.name());
+    #[rustfmt::skip]
+    log::info!("      > Material#{:?}: {:?}", material.index(), material.name());
 
     let material_pbr = material.pbr_metallic_roughness();
     let texture = material_pbr
@@ -35,7 +36,7 @@ fn parse_mesh_primitive(
     primitive: gltf::Primitive,
 ) -> Result<MeshPrimitive, ()> {
     #[cfg(feature = "debug_gltf")]
-    println!("  > Primitive#{:?}", primitive.index());
+    log::info!("    > Primitive#{:?}", primitive.index());
 
     let reader =
         primitive.reader(|buffer| global_gltf.buffers.get(buffer.index()).map(|b| &b.0[..]));
@@ -71,7 +72,7 @@ fn parse_mesh_primitive(
 
 fn parse_mesh(global_gltf: &GlobalGltf, mesh: gltf::Mesh) -> Result<Mesh, ()> {
     #[cfg(feature = "debug_gltf")]
-    println!("> Mesh: {:?}", mesh.name());
+    log::info!("  > Mesh#{:?}: {:?}", mesh.index(), mesh.name());
 
     let mut primitives = Vec::new();
     for primitive in mesh.primitives() {
@@ -84,7 +85,7 @@ fn parse_mesh(global_gltf: &GlobalGltf, mesh: gltf::Mesh) -> Result<Mesh, ()> {
 
 fn parse_node(global_gltf: &GlobalGltf, node: gltf::Node) -> Result<Node, ()> {
     #[cfg(feature = "debug_gltf")]
-    println!("Node: {:?}", node.name());
+    log::info!("> Node#{:?}: {:?}", node.index(), node.name());
 
     let mut meshes = Vec::new();
     if let Some(mesh) = node.mesh() {
@@ -120,7 +121,7 @@ fn parse_node(global_gltf: &GlobalGltf, node: gltf::Node) -> Result<Node, ()> {
 
 fn parse_scene(global_gltf: &GlobalGltf, scene: gltf::Scene) -> Result<Scene, ()> {
     #[cfg(feature = "debug_gltf")]
-    println!("Scene: {:?}", scene.name());
+    log::info!("Scene: {:?}", scene.name());
 
     let mut nodes = Vec::new();
     for node in scene.nodes() {
@@ -133,7 +134,7 @@ fn parse_scene(global_gltf: &GlobalGltf, scene: gltf::Scene) -> Result<Scene, ()
 
 pub fn load_scenes<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<Scene>, ()> {
     #[cfg(feature = "debug_gltf")]
-    println!("Loading gltf file: {:?}", path.as_ref());
+    log::info!("⏹ Loading gltf file: {:?}", path.as_ref());
 
     let (gltf, buffers, images) = gltf::import(&path).expect("Failed to load gltf file");
 
@@ -152,7 +153,7 @@ pub fn load_scenes<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<Scene>, ()>
     }
 
     #[cfg(feature = "debug_gltf")]
-    println!("🆗 Loaded gltf file: {:?}", path.as_ref());
+    log::info!("🆗 Loaded gltf file: {:?}", path.as_ref());
 
     Ok(scenes)
 }

@@ -75,7 +75,7 @@ fn event_handler(
                 // The system is out of memory, we should probably quit
                 Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
                 // All other errors (Outdated, Timeout) should be resolved by the next frame
-                Err(e) => eprintln!("{:?}", e),
+                Err(e) => log::error!("{:?}", e),
             }
         }
         Event::MainEventsCleared => {
@@ -91,11 +91,6 @@ fn event_handler(
 fn init_log() {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     console_log::init_with_level(log::Level::Info).expect("Couldn't initialize logger");
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn init_log() {
-    env_logger::init();
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -119,6 +114,7 @@ fn init_window(window: &winit::window::Window) {
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub async fn run(scene: Scene) {
+    #[cfg(target_arch = "wasm32")]
     init_log();
 
     let event_loop = EventLoop::new();
