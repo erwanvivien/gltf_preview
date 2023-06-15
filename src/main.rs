@@ -12,9 +12,9 @@ fn main() -> Result<(), ()> {
     init_log();
 
     let mut scenes = mario_skurt::model::load_scenes("assets/Fox.glb")?;
-    let first_scene = scenes.pop().unwrap();
+    let first_scene_fox = scenes.pop().unwrap();
 
-    pollster::block_on(mario_skurt::run(first_scene));
+    pollster::block_on(mario_skurt::run(&mut [first_scene_fox]));
 
     Ok(())
 }

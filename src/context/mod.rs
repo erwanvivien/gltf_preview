@@ -1,7 +1,8 @@
 use wgpu::{Adapter, Instance, Surface, TextureFormat};
 use winit::{dpi::PhysicalSize, window::Window};
 
-use crate::{context::depth_texture::Texture, model::Scene};
+pub use crate::context::depth_texture::Texture;
+use crate::model::{Mesh, MeshPrimitive, Scene};
 
 mod camera;
 mod depth_texture;
@@ -18,12 +19,8 @@ pub struct DrawingContext {
 
     camera: camera::Camera,
 
+    meshes: Vec<Mesh>,
     render_pipeline: wgpu::RenderPipeline,
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: Option<wgpu::Buffer>,
-    index_count: u32,
-
-    color_bind_group: wgpu::BindGroup,
 
     fill_color: wgpu::Color,
 }
@@ -56,7 +53,7 @@ async fn get_adaptater(instance: &Instance, surface: &Surface) -> Adapter {
 }
 
 impl DrawingContext {
-    pub async fn new(window: Window, scene: Scene) -> Self {
+    pub async fn new(window: Window, scenes: &mut [Scene]) -> Self {
         let device_descriptor = wgpu::DeviceDescriptor {
             features: wgpu::Features::empty(),
             #[cfg(not(feature = "webgl"))]
@@ -115,77 +112,28 @@ impl DrawingContext {
         let camera = camera::Camera::new(&window, &device);
         camera.update_projection_matrix(&queue);
 
-        use wgpu::util::DeviceExt;
-        let mesh = &scene.nodes[1].meshes[0].primitives[0];
-        let texture = &mesh.material.texture;
+        let mut meshes = Vec::new();
 
-        let texture = texture.as_ref().unwrap();
-        let color_texture = Texture::create_texture_from_image(&device, &queue, &texture);
+        for scene in scenes {
+            while let Some(mut node) = scene.nodes.pop() {
+                while let Some(mesh) = node.meshes.pop() {
+                    meshes.push(mesh);
+                }
+            }
 
-        let color_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            multisampled: false,
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
-                    },
-                ],
-                label: Some("Color Bind Group Layout"),
-            });
-
-        let color_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &color_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&color_texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&color_texture.sampler),
-                },
-            ],
-            label: Some("Color Bind Group"),
-        });
-
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(mesh.vertices.as_slice()),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-
-        let index_buffer = mesh.indices.as_ref().map(|indices| {
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Index Buffer"),
-                contents: bytemuck::cast_slice(indices.as_slice()),
-                usage: wgpu::BufferUsages::INDEX,
-            })
-        });
+            for mesh in &mut meshes {
+                for mesh_primitive in &mut mesh.primitives {
+                    mesh_primitive.create_buffers(&device, &queue);
+                }
+            }
+        }
 
         let render_pipeline = render_pipeline::create_main_render_pipeline(
             &device,
             &config,
             camera.bind_group_layout(),
-            &color_bind_group_layout,
+            &MeshPrimitive::color_bind_group_layout(&device),
         );
-
-        let index_count = mesh
-            .indices
-            .as_ref()
-            .map(Vec::len)
-            .unwrap_or(mesh.vertices.len()) as u32;
 
         let depth_texture = Texture::create_depth_texture(&device, &config);
 
@@ -200,12 +148,8 @@ impl DrawingContext {
 
             camera,
 
+            meshes,
             render_pipeline,
-            vertex_buffer,
-            index_buffer,
-            index_count,
-
-            color_bind_group,
 
             fill_color: wgpu::Color::BLACK,
         }
@@ -241,9 +185,10 @@ impl DrawingContext {
                 label: Some("Clear color"),
             });
 
+        // Texture render pass
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
+                label: Some("Texture Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
@@ -263,16 +208,14 @@ impl DrawingContext {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.color_bind_group, &[]);
             render_pass.set_bind_group(1, self.camera.bind_group(), &[]);
 
-            if let Some(index_buffer) = &self.index_buffer {
-                render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-                render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-                render_pass.draw_indexed(0..self.index_count, 0, 0..1);
-            } else {
-                render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-                render_pass.draw(0..self.index_count, 0..1);
+            for mesh in &self.meshes {
+                for mesh_primitive in &mesh.primitives {
+                    if mesh_primitive.color_bind_group.is_some() {
+                        mesh_primitive.draw_texture(&mut render_pass);
+                    }
+                }
             }
         }
 

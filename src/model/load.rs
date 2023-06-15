@@ -63,11 +63,7 @@ fn parse_mesh_primitive(
     let material_index = primitive.material().index().unwrap_or(0);
     let material = parse_material(&global_gltf, &global_gltf.materials[material_index]);
 
-    Ok(MeshPrimitive {
-        vertices,
-        indices,
-        material,
-    })
+    Ok(MeshPrimitive::new(vertices, indices, material))
 }
 
 fn parse_mesh(global_gltf: &GlobalGltf, mesh: gltf::Mesh) -> Result<Mesh, ()> {

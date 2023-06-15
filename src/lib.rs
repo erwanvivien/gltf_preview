@@ -113,7 +113,7 @@ fn init_window(window: &winit::window::Window) {
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
-pub async fn run(scene: Scene) {
+pub async fn run(scene: &mut [Scene]) {
     #[cfg(target_arch = "wasm32")]
     init_log();
 
