@@ -1,6 +1,6 @@
 use wgpu::{Device, SurfaceConfiguration};
 
-use crate::context::depth_texture::Texture;
+use crate::context::texture::Texture;
 use crate::model::Vertex;
 
 const PRIMITIVE_STATE: wgpu::PrimitiveState = wgpu::PrimitiveState {

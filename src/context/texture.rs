@@ -1,7 +1,7 @@
 pub struct Texture {
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
-    pub sampler: wgpu::Sampler,
+    pub sampler: &'static wgpu::Sampler,
 }
 
 const DEPTH_SAMPLER_DESCRIPTOR: wgpu::SamplerDescriptor = wgpu::SamplerDescriptor {
@@ -37,6 +37,30 @@ const TEXTURE_SAMPLER_DESCRIPTOR: wgpu::SamplerDescriptor = wgpu::SamplerDescrip
 impl Texture {
     pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
+    pub fn get_singleton_depth_sampler(device: &wgpu::Device) -> &'static wgpu::Sampler {
+        static mut SAMPLER: Option<wgpu::Sampler> = None;
+
+        if unsafe { &SAMPLER }.is_none() {
+            unsafe {
+                SAMPLER = Some(device.create_sampler(&DEPTH_SAMPLER_DESCRIPTOR));
+            }
+        }
+
+        unsafe { SAMPLER.as_ref().unwrap() }
+    }
+
+    pub fn get_singleton_texture_sampler(device: &wgpu::Device) -> &'static wgpu::Sampler {
+        static mut SAMPLER: Option<wgpu::Sampler> = None;
+
+        if unsafe { &SAMPLER }.is_none() {
+            unsafe {
+                SAMPLER = Some(device.create_sampler(&TEXTURE_SAMPLER_DESCRIPTOR));
+            }
+        }
+
+        unsafe { SAMPLER.as_ref().unwrap() }
+    }
+
     pub fn create_depth_texture(
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,
@@ -63,7 +87,7 @@ impl Texture {
 
         let texture = device.create_texture(&texture_descriptor);
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let sampler = device.create_sampler(&DEPTH_SAMPLER_DESCRIPTOR);
+        let sampler = Self::get_singleton_depth_sampler(device);
 
         Self {
             texture,
@@ -133,7 +157,7 @@ impl Texture {
         );
 
         let texture_view = color_texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let texture_sampler = device.create_sampler(&TEXTURE_SAMPLER_DESCRIPTOR);
+        let texture_sampler = Self::get_singleton_texture_sampler(device);
 
         Self {
             texture: color_texture,

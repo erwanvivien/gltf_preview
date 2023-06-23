@@ -1,12 +1,12 @@
 use wgpu::{Adapter, Instance, Surface, TextureFormat};
 use winit::{dpi::PhysicalSize, window::Window};
 
-pub use crate::context::depth_texture::Texture;
+pub use crate::context::texture::Texture;
 use crate::model::{Mesh, MeshPrimitive, Scene};
 
 mod camera;
-mod depth_texture;
 mod render_pipeline;
+mod texture;
 
 pub struct DrawingContext {
     surface: wgpu::Surface,
