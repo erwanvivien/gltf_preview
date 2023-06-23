@@ -4,8 +4,11 @@ use winit::{dpi::PhysicalSize, window::Window};
 pub use crate::context::texture::Texture;
 use crate::model::{Mesh, MeshPrimitive, Scene};
 
+use self::render_pipeline::TexturePipeline;
+
 mod camera;
 mod render_pipeline;
+mod shaders;
 mod texture;
 
 pub struct DrawingContext {
@@ -20,7 +23,7 @@ pub struct DrawingContext {
     camera: camera::Camera,
 
     meshes: Vec<Mesh>,
-    render_pipeline: wgpu::RenderPipeline,
+    texture_pipeline: TexturePipeline,
 
     fill_color: wgpu::Color,
 }
@@ -86,6 +89,8 @@ impl DrawingContext {
             .await
             .expect("Failed to create device and queue");
 
+        shaders::build_shaders(&device);
+
         let surface_capabilities = surface.get_capabilities(&adapter);
         // Shader code in this tutorial assumes an sRGB surface texture. Using a different
         // one will result all the colors coming out darker. If you want to support non
@@ -128,7 +133,7 @@ impl DrawingContext {
             }
         }
 
-        let render_pipeline = render_pipeline::create_main_render_pipeline(
+        let texture_pipeline = TexturePipeline::new(
             &device,
             &config,
             camera.bind_group_layout(),
@@ -149,7 +154,7 @@ impl DrawingContext {
             camera,
 
             meshes,
-            render_pipeline,
+            texture_pipeline,
 
             fill_color: wgpu::Color::BLACK,
         }
@@ -207,7 +212,7 @@ impl DrawingContext {
                 }),
             });
 
-            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_pipeline(&self.texture_pipeline.pipeline);
             render_pass.set_bind_group(1, self.camera.bind_group(), &[]);
 
             for mesh in &self.meshes {
