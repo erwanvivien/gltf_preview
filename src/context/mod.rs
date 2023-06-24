@@ -122,15 +122,13 @@ impl DrawingContext {
         let mut meshes = Vec::new();
 
         for scene in scenes {
-            while let Some(mut node) = scene.nodes.pop() {
-                while let Some(mesh) = node.meshes.pop() {
-                    meshes.push(mesh);
-                }
-            }
+            for mut node in scene.nodes.drain(..) {
+                for mut mesh in node.meshes.drain(..) {
+                    for mesh_primitive in &mut mesh.primitives {
+                        mesh_primitive.create_buffers(&device, &queue);
+                    }
 
-            for mesh in &mut meshes {
-                for mesh_primitive in &mut mesh.primitives {
-                    mesh_primitive.create_buffers(&device, &queue);
+                    meshes.push(mesh);
                 }
             }
         }

@@ -184,7 +184,7 @@ pub struct Node {
     pub index: usize,
     pub meshes: Vec<Mesh>,
     pub transform: glam::Mat4,
-    pub children: Vec<usize>,
+    pub children: Vec<Node>,
 }
 
 pub struct Scene {

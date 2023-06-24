@@ -102,16 +102,16 @@ fn parse_node(global_gltf: &GlobalGltf, node: gltf::Node) -> Result<Node, ()> {
         }
     };
 
-    let children_ids = node
+    let children: Vec<Node> = node
         .children()
-        .map(|child| child.index())
-        .collect::<Vec<_>>();
+        .map(|child| parse_node(global_gltf, child))
+        .collect::<Result<_, _>>()?;
 
     Ok(Node {
         index: node.index(),
         meshes,
         transform,
-        children: children_ids,
+        children,
     })
 }
 
@@ -119,10 +119,23 @@ fn parse_scene(global_gltf: &GlobalGltf, scene: gltf::Scene) -> Result<Scene, ()
     #[cfg(feature = "debug_gltf")]
     log::info!("Scene: {:?}", scene.name());
 
+    fn get_children_nodes(nodes: &mut Vec<Node>, mut current: Node) -> &mut Vec<Node> {
+        for child in current.children.drain(..) {
+            let child = Node {
+                transform: current.transform * child.transform,
+                ..child
+            };
+            get_children_nodes(nodes, child);
+        }
+
+        nodes.push(current);
+        nodes
+    }
+
     let mut nodes = Vec::new();
     for node in scene.nodes() {
         let node = parse_node(&global_gltf, node)?;
-        nodes.push(node);
+        nodes.append(&mut get_children_nodes(&mut Vec::new(), node));
     }
 
     Ok(Scene { nodes })
