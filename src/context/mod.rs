@@ -26,6 +26,8 @@ pub struct DrawingContext {
     texture_pipeline: TexturePipeline,
 
     fill_color: wgpu::Color,
+    /// Window has a dimension of 0
+    minimized: bool,
 }
 
 async fn get_adaptater(instance: &Instance, surface: &Surface) -> Adapter {
@@ -157,12 +159,13 @@ impl DrawingContext {
             texture_pipeline,
 
             fill_color: wgpu::Color::BLACK,
+            minimized: false,
         }
     }
 
     pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
         if new_size.width == 0 || new_size.height == 0 {
-            log::error!("Window size is 0, skipping resize");
+            self.minimized = true;
             return;
         }
 
@@ -172,6 +175,8 @@ impl DrawingContext {
         self.surface.configure(&self.device, &self.config);
         // No need to destroy old depth texture, it will be dropped
         self.depth_texture = Texture::create_depth_texture(&self.device, &self.config);
+
+        self.minimized = false;
     }
 
     pub fn reconfigure(&mut self) {
@@ -179,6 +184,11 @@ impl DrawingContext {
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+        if self.minimized {
+            self.maintain();
+            return Ok(());
+        }
+
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -229,6 +239,11 @@ impl DrawingContext {
         output.present();
 
         Ok(())
+    }
+
+    pub fn maintain(&self) {
+        self.queue.submit(std::iter::empty());
+        self.device.poll(wgpu::Maintain::Poll);
     }
 }
 
