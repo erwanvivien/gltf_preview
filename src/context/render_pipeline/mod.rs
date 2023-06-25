@@ -15,4 +15,4 @@ mod texture;
 
 trait RenderPipeline {}
 
-pub use texture::TexturePipeline;
+pub use texture::{TexturePipeline, TextureVertex};

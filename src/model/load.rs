@@ -41,19 +41,32 @@ fn parse_mesh_primitive(
     let reader =
         primitive.reader(|buffer| global_gltf.buffers.get(buffer.index()).map(|b| &b.0[..]));
 
-    let positions = reader.read_positions().ok_or_else(|| ())?;
-    let normals = reader.read_positions().ok_or_else(|| ())?;
+    let positions = reader
+        .read_positions()
+        .ok_or_else(|| ())?
+        .collect::<Vec<_>>();
+    let normals = reader
+        .read_positions()
+        .ok_or_else(|| ())?
+        .collect::<Vec<_>>();
     let tex_coords = reader
         .read_tex_coords(0)
-        .ok_or_else(|| ())?
-        .into_f32()
-        .collect::<Vec<_>>();
+        .map(|tex| tex.into_f32().collect::<Vec<_>>());
+    let colors = reader
+        .read_colors(0)
+        .map(|color| color.into_rgb_f32().collect::<Vec<_>>());
 
-    let vertices = positions
-        .zip(normals)
-        .zip(tex_coords)
-        .map(|((position, normal), tex_coord)| Vertex::new(position, normal, tex_coord))
-        .collect::<Vec<_>>();
+    let mut vertices = Vec::with_capacity(positions.len());
+    for i in 0..positions.len() {
+        let vertex = Vertex {
+            position: positions[i],
+            normal: normals[i],
+            tex_coord: tex_coords.as_ref().map(|tex| tex[i]),
+            color: colors.as_ref().map(|color| color[i]),
+        };
+
+        vertices.push(vertex);
+    }
 
     let indices = reader
         .read_indices()

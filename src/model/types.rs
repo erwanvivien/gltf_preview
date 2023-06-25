@@ -18,7 +18,7 @@ pub struct MeshPrimitive {
     pub index_buffer: Option<wgpu::Buffer>,
     pub index_count: u32,
 
-    pub color_bind_group: Option<wgpu::BindGroup>,
+    pub texture_bind_group: Option<wgpu::BindGroup>,
 }
 
 const COLOR_BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> =
@@ -71,18 +71,22 @@ impl MeshPrimitive {
             index_buffer: None,
             index_count: 0,
 
-            color_bind_group: None,
+            texture_bind_group: None,
         }
     }
 
-    pub fn create_buffers(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+    pub fn create_texture_and_vertex_buffers(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) {
         use crate::context::Texture;
 
         if let Some(texture) = &self.material.texture {
-            let color_texture = Texture::create_texture_from_image(&device, &queue, texture);
+            let color_texture = Texture::create_texture_from_image(&device, &queue, &texture.0);
 
             let color_bind_group_layout = MeshPrimitive::color_bind_group_layout(&device);
-            let color_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 layout: &color_bind_group_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
@@ -97,14 +101,23 @@ impl MeshPrimitive {
                 label: Some("Color Bind Group"),
             });
 
-            self.color_bind_group = Some(color_bind_group);
-        }
+            self.texture_bind_group = Some(texture_bind_group);
 
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(self.vertices.as_slice()),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
+            use crate::context::render_pipeline::TextureVertex;
+            let texture_vertices = self
+                .vertices
+                .iter()
+                .map(TextureVertex::new)
+                .collect::<Vec<_>>();
+
+            self.vertex_buffer = Some(device.create_buffer_init(
+                &wgpu::util::BufferInitDescriptor {
+                    label: Some("Vertex Buffer"),
+                    contents: bytemuck::cast_slice(&texture_vertices),
+                    usage: wgpu::BufferUsages::VERTEX,
+                },
+            ));
+        }
 
         let index_buffer = self.indices.as_ref().map(|indices| {
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -114,7 +127,6 @@ impl MeshPrimitive {
             })
         });
 
-        self.vertex_buffer = Some(vertex_buffer);
         self.index_buffer = index_buffer;
         self.index_count = self
             .indices
@@ -123,57 +135,17 @@ impl MeshPrimitive {
             .unwrap_or(self.vertices.len()) as u32;
     }
 
-    pub fn draw_texture<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
-        let color_bind_group = self.color_bind_group.as_ref().unwrap();
-        render_pass.set_bind_group(0, color_bind_group, &[]);
-
-        self.draw(render_pass);
-    }
-
-    fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.as_ref().unwrap().slice(..));
-
-        if let Some(index_buffer) = &self.index_buffer {
-            render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-            render_pass.draw_indexed(0..self.index_count, 0, 0..1);
-        } else {
-            render_pass.draw(0..self.index_count, 0..1);
-        }
-    }
-
     pub fn get_bind_group_layout(&self) -> Option<&wgpu::BindGroup> {
-        self.color_bind_group.as_ref()
+        self.texture_bind_group.as_ref()
     }
 }
 
-#[repr(C, align(16))]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Copy, Clone, Debug)]
 pub struct Vertex {
     pub position: [f32; 3],
     pub normal: [f32; 3],
-    pub tex_coords: [f32; 2],
-    _padding: [f32; 0],
-}
-
-impl Vertex {
-    pub fn new(position: [f32; 3], normal: [f32; 3], tex_coords: [f32; 2]) -> Self {
-        Self {
-            position,
-            normal,
-            tex_coords,
-            _padding: [0.0; 0],
-        }
-    }
-
-    pub const fn desc() -> wgpu::VertexBufferLayout<'static> {
-        const ATTRIBUTES: [wgpu::VertexAttribute; 4] = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x3, 3 => Float32x2];
-
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &ATTRIBUTES,
-        }
-    }
+    pub tex_coord: Option<[f32; 2]>,
+    pub color: Option<[f32; 3]>,
 }
 
 pub struct Mesh {

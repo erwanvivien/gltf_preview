@@ -2,12 +2,43 @@ use wgpu::{Device, SurfaceConfiguration};
 
 use crate::context::shaders::get_shader;
 use crate::context::texture::Texture;
-use crate::model::Vertex;
 
 use crate::context::render_pipeline::PRIMITIVE_STATE;
+use crate::model::Vertex;
 
 pub struct TexturePipeline {
     pub pipeline: wgpu::RenderPipeline,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct TextureVertex {
+    position: [f32; 3],
+    normal: [f32; 3],
+    tex_coords: [f32; 2],
+}
+
+impl TextureVertex {
+    pub fn new(vertex: &Vertex) -> Self {
+        Self {
+            position: vertex.position,
+            normal: vertex.normal,
+            tex_coords: vertex
+                .tex_coord
+                .expect("Vertex must have texture coordinates"),
+        }
+    }
+
+    pub const fn desc() -> wgpu::VertexBufferLayout<'static> {
+        const ATTRIBUTES: [wgpu::VertexAttribute; 3] =
+            wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2];
+
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<Self>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &ATTRIBUTES,
+        }
+    }
 }
 
 impl TexturePipeline {
@@ -32,7 +63,7 @@ impl TexturePipeline {
         let vertex_state = wgpu::VertexState {
             module: &main_shader,
             entry_point: "vs_main",
-            buffers: &[Vertex::desc()],
+            buffers: &[TextureVertex::desc()],
         };
 
         let fragment_state = wgpu::FragmentState {

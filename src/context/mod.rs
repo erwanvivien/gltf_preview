@@ -2,12 +2,13 @@ use wgpu::{Adapter, Instance, Surface, TextureFormat};
 use winit::{dpi::PhysicalSize, window::Window};
 
 pub use crate::context::texture::Texture;
-use crate::model::{Mesh, MeshPrimitive, Scene};
+use crate::model::{MeshPrimitive, Scene};
 
 use self::render_pipeline::TexturePipeline;
 
+mod asset_store;
 mod camera;
-mod render_pipeline;
+pub(crate) mod render_pipeline;
 mod shaders;
 mod texture;
 
@@ -22,7 +23,7 @@ pub struct DrawingContext {
 
     camera: camera::Camera,
 
-    meshes: Vec<Mesh>,
+    asset_world: asset_store::AssetWorld,
     texture_pipeline: TexturePipeline,
 
     fill_color: wgpu::Color,
@@ -119,20 +120,6 @@ impl DrawingContext {
         let camera = camera::Camera::new(&window, &device);
         camera.update_projection_matrix(&queue);
 
-        let mut meshes = Vec::new();
-
-        for scene in scenes {
-            for mut node in scene.nodes.drain(..) {
-                for mut mesh in node.meshes.drain(..) {
-                    for mesh_primitive in &mut mesh.primitives {
-                        mesh_primitive.create_buffers(&device, &queue);
-                    }
-
-                    meshes.push(mesh);
-                }
-            }
-        }
-
         let texture_pipeline = TexturePipeline::new(
             &device,
             &config,
@@ -141,6 +128,8 @@ impl DrawingContext {
         );
 
         let depth_texture = Texture::create_depth_texture(&device, &config);
+
+        let asset_world = asset_store::AssetWorld::new(scenes, &device, &queue);
 
         Self {
             config,
@@ -153,7 +142,7 @@ impl DrawingContext {
 
             camera,
 
-            meshes,
+            asset_world,
             texture_pipeline,
 
             fill_color: wgpu::Color::BLACK,
@@ -198,7 +187,6 @@ impl DrawingContext {
                 label: Some("Clear color"),
             });
 
-        // Texture render pass
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Texture Render Pass"),
@@ -223,11 +211,29 @@ impl DrawingContext {
             render_pass.set_pipeline(&self.texture_pipeline.pipeline);
             render_pass.set_bind_group(1, self.camera.bind_group(), &[]);
 
-            for mesh in &self.meshes {
-                for mesh_primitive in &mesh.primitives {
-                    if mesh_primitive.color_bind_group.is_some() {
-                        mesh_primitive.draw_texture(&mut render_pass);
-                    }
+            use crate::context::asset_store::{Albedo, Indices, TextureBindGroup, Vertices};
+            type Query<'a> = (
+                &'a Vertices,
+                &'a Albedo,
+                Option<&'a Indices>,
+                &'a TextureBindGroup,
+            );
+
+            for (vertices, _albedo, indices, texture) in self
+                .asset_world
+                .world
+                .query::<Query>()
+                .iter(&self.asset_world.world)
+            {
+                render_pass.set_bind_group(0, &texture.bind_group, &[]);
+                render_pass.set_vertex_buffer(0, vertices.buffer.slice(..));
+
+                if let Some(index_buffer) = indices {
+                    render_pass
+                        .set_index_buffer(index_buffer.buffer.slice(..), index_buffer.format);
+                    render_pass.draw_indexed(0..vertices.count, 0, 0..1);
+                } else {
+                    render_pass.draw(0..vertices.count, 0..1);
                 }
             }
         }

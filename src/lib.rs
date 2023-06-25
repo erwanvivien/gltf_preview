@@ -113,7 +113,7 @@ fn init_window(window: &winit::window::Window) {
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
-pub async fn run(scene: &mut [Scene]) {
+pub async fn run(scenes: &mut [Scene]) {
     #[cfg(target_arch = "wasm32")]
     init_log();
 
@@ -123,7 +123,7 @@ pub async fn run(scene: &mut [Scene]) {
     #[cfg(target_arch = "wasm32")]
     init_window(&window);
 
-    let mut drawing_context = DrawingContext::new(window, scene).await;
+    let mut drawing_context = DrawingContext::new(window, scenes).await;
 
     event_loop.run(move |event, event_loop_window_target, control_flow| {
         event_handler(

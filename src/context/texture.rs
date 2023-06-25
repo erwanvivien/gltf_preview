@@ -99,9 +99,8 @@ impl Texture {
     pub fn create_texture_from_image(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        texture: &crate::model::Texture,
+        image: &gltf::image::Data,
     ) -> Self {
-        let image = &texture.0;
         #[cfg(feature = "debug_gpu")]
         #[rustfmt::skip]
         log::info!("Texture {}x{} : {:?}", image.width, image.height, image.format);
