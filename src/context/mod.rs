@@ -11,6 +11,7 @@ mod camera;
 pub(crate) mod render_pipeline;
 mod shaders;
 mod texture;
+pub mod utils;
 
 pub struct DrawingContext {
     surface: wgpu::Surface,
@@ -209,7 +210,7 @@ impl DrawingContext {
             });
 
             render_pass.set_pipeline(&self.texture_pipeline.pipeline);
-            render_pass.set_bind_group(1, self.camera.bind_group(), &[]);
+            render_pass.set_bind_group(2, self.camera.bind_group(), &[]);
 
             use crate::context::asset_store::{Albedo, Indices, TextureBindGroup, Vertices};
             type Query<'a> = (
@@ -226,6 +227,7 @@ impl DrawingContext {
                 .iter(&self.asset_world.world)
             {
                 render_pass.set_bind_group(0, &texture.bind_group, &[]);
+                render_pass.set_bind_group(1, &vertices.transform_bind_group, &[]);
                 render_pass.set_vertex_buffer(0, vertices.buffer.slice(..));
 
                 if let Some(index_buffer) = indices {

@@ -4,6 +4,7 @@ use crate::context::shaders::get_shader;
 use crate::context::texture::Texture;
 
 use crate::context::render_pipeline::PRIMITIVE_STATE;
+use crate::context::utils::get_or_create_transform_bind_group_layout;
 use crate::model::Vertex;
 
 pub struct TexturePipeline {
@@ -53,10 +54,16 @@ impl TexturePipeline {
 
         let main_shader = get_shader("texture_shader");
 
+        let transform_bind_group_layout = get_or_create_transform_bind_group_layout(device);
+
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Main Render Pipeline Layout"),
-                bind_group_layouts: &[texture_bind_group_layout, camera_bind_group_layout],
+                bind_group_layouts: &[
+                    texture_bind_group_layout,
+                    transform_bind_group_layout,
+                    camera_bind_group_layout,
+                ],
                 push_constant_ranges: &[],
             });
 

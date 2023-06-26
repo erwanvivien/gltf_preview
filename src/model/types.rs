@@ -1,5 +1,7 @@
 use wgpu::util::DeviceExt;
 
+use crate::context::utils::get_or_create_transform_bind_group_layout;
+
 pub struct Texture(pub gltf::image::Data);
 
 pub struct MeshMaterial {
@@ -15,10 +17,12 @@ pub struct MeshPrimitive {
     pub material: MeshMaterial,
 
     pub vertex_buffer: Option<wgpu::Buffer>,
+    pub transform_buffer: Option<wgpu::Buffer>,
     pub index_buffer: Option<wgpu::Buffer>,
     pub index_count: u32,
 
     pub texture_bind_group: Option<wgpu::BindGroup>,
+    pub transform_bind_group: Option<wgpu::BindGroup>,
 }
 
 const COLOR_BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> =
@@ -72,6 +76,8 @@ impl MeshPrimitive {
             index_count: 0,
 
             texture_bind_group: None,
+            transform_bind_group: None,
+            transform_buffer: None,
         }
     }
 
@@ -79,6 +85,7 @@ impl MeshPrimitive {
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
+        transform: glam::Mat4,
     ) {
         use crate::context::Texture;
 
@@ -119,6 +126,25 @@ impl MeshPrimitive {
             ));
         }
 
+        let transform_bind_group_layout = get_or_create_transform_bind_group_layout(&device);
+        let transform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Transform Buffer"),
+            contents: bytemuck::cast_slice(&[transform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let transform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &transform_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: transform_buffer.as_entire_binding(),
+            }],
+            label: Some("Transform Bind Group"),
+        });
+
+        self.transform_bind_group = Some(transform_bind_group);
+        self.transform_buffer = Some(transform_buffer);
+
         let index_buffer = self.indices.as_ref().map(|indices| {
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Index Buffer"),
@@ -157,6 +183,25 @@ pub struct Node {
     pub meshes: Vec<Mesh>,
     pub transform: glam::Mat4,
     pub children: Vec<Node>,
+}
+
+impl IntoIterator for Node {
+    type Item = (MeshPrimitive, glam::Mat4);
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.meshes
+            .into_iter()
+            .flat_map(|mesh| {
+                mesh.primitives
+                    .into_iter()
+                    .map(|primitive| (primitive, self.transform))
+                    .collect::<Vec<_>>()
+                    .into_iter()
+            })
+            .collect::<Vec<_>>()
+            .into_iter()
+    }
 }
 
 pub struct Scene {

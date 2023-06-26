@@ -7,6 +7,7 @@ use wgpu::util::DeviceExt;
 pub struct Vertices {
     pub count: u32,
     pub buffer: wgpu::Buffer,
+    pub transform_bind_group: wgpu::BindGroup,
 }
 
 #[derive(Component)]
@@ -78,18 +79,23 @@ impl AssetWorld {
 
         let mut mesh_primitives = scenes
             .iter_mut()
-            .flat_map(|scene| scene.nodes.drain(..))
-            .flat_map(|node| node.meshes)
-            .flat_map(|mesh| mesh.primitives)
+            .flat_map(|scene| {
+                scene
+                    .nodes
+                    .drain(..)
+                    .flat_map(|node| node.into_iter().collect::<Vec<_>>())
+                    .collect::<Vec<_>>()
+            })
             .collect::<Vec<_>>();
 
-        for mesh_primitive in &mut mesh_primitives {
-            mesh_primitive.create_texture_and_vertex_buffers(&device, &queue);
+        for (mesh_primitive, transform) in &mut mesh_primitives {
+            mesh_primitive.create_texture_and_vertex_buffers(&device, &queue, *transform);
 
             let mut entity = world.spawn((
                 Vertices {
                     count: mesh_primitive.index_count,
                     buffer: mesh_primitive.vertex_buffer.take().unwrap(),
+                    transform_bind_group: mesh_primitive.transform_bind_group.take().unwrap(),
                 },
                 Albedo {
                     albedo: mesh_primitive.material.base_albedo,

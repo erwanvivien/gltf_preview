@@ -29,9 +29,9 @@ impl Camera {
     pub fn new(window: &Window, device: &wgpu::Device) -> Self {
         let inner_size = window.inner_size();
 
-        let eye = glam::vec3(10.0, 10.0, 0.0);
+        let eye = glam::vec3(10.0, 0.0, 10.0);
         let target = glam::vec3(0.0, 0.0, 0.0);
-        let up = -glam::Vec3::Z;
+        let up = glam::Vec3::Y;
         let aspect = inner_size.width as f32 / inner_size.height as f32;
         let fovy = 45.0 / 180.0 * std::f32::consts::PI;
         let znear = 0.1;

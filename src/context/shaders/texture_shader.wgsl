@@ -12,6 +12,9 @@ struct VertexOutput {
 };
 
 @group(1) @binding(0) 
+var<uniform> transform: mat4x4<f32>;
+
+@group(2) @binding(0)
 var<uniform> camera: mat4x4<f32>;
 
 @vertex
@@ -20,7 +23,7 @@ fn vs_main(
 ) -> VertexOutput {
     var out: VertexOutput;
     out.tex_coords = model.tex_coords;
-    out.clip_position = camera * vec4<f32>(model.position, 1.0);
+    out.clip_position = camera * transform * vec4<f32>(model.position, 1.0);
     return out;
 }
 
