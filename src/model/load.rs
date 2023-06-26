@@ -86,7 +86,11 @@ fn parse_mesh(global_gltf: &GlobalGltf, mesh: gltf::Mesh) -> Result<Mesh, ()> {
     let mut primitives = Vec::new();
     for primitive in mesh.primitives() {
         let primitive = parse_mesh_primitive(global_gltf, primitive)?;
-        primitives.push(primitive);
+        primitives.push(MeshPrimitive {
+            #[cfg(feature = "debug_gltf")]
+            name: mesh.name().map(|s| s.to_string()),
+            ..primitive
+        });
     }
 
     Ok(Mesh { primitives })
@@ -125,6 +129,9 @@ fn parse_node(global_gltf: &GlobalGltf, node: gltf::Node) -> Result<Node, ()> {
         meshes,
         transform,
         children,
+
+        #[cfg(feature = "debug_gltf")]
+        name: node.name().map(String::from),
     })
 }
 
@@ -151,7 +158,12 @@ fn parse_scene(global_gltf: &GlobalGltf, scene: gltf::Scene) -> Result<Scene, ()
         nodes.append(&mut get_children_nodes(&mut Vec::new(), node));
     }
 
-    Ok(Scene { nodes })
+    Ok(Scene {
+        nodes,
+
+        #[cfg(feature = "debug_gltf")]
+        name: scene.name().map(String::from),
+    })
 }
 
 pub fn load_scenes<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<Scene>, ()> {
@@ -171,6 +183,9 @@ pub fn load_scenes<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<Scene>, ()>
     let mut scenes = Vec::new();
     for scene in gltf.scenes() {
         let scene = parse_scene(&global_gltf, scene)?;
+
+        #[cfg(feature = "debug_gltf")]
+        dbg!(&scene);
         scenes.push(scene);
     }
 

@@ -8,6 +8,9 @@ pub struct Vertices {
     pub count: u32,
     pub buffer: wgpu::Buffer,
     pub transform_bind_group: wgpu::BindGroup,
+
+    #[cfg(feature = "debug_gltf")]
+    pub name: Option<String>,
 }
 
 #[derive(Component)]
@@ -96,6 +99,9 @@ impl AssetWorld {
                     count: mesh_primitive.index_count,
                     buffer: mesh_primitive.vertex_buffer.take().unwrap(),
                     transform_bind_group: mesh_primitive.transform_bind_group.take().unwrap(),
+
+                    #[cfg(feature = "debug_gltf")]
+                    name: mesh_primitive.name.take(),
                 },
                 Albedo {
                     albedo: mesh_primitive.material.base_albedo,

@@ -11,6 +11,12 @@ pub struct MeshMaterial {
     pub texture: Option<Texture>,
 }
 
+impl std::fmt::Debug for MeshMaterial {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MeshMaterial").finish()
+    }
+}
+
 pub struct MeshPrimitive {
     pub vertices: Vec<Vertex>,
     pub indices: Option<Vec<u32>>,
@@ -23,6 +29,20 @@ pub struct MeshPrimitive {
 
     pub texture_bind_group: Option<wgpu::BindGroup>,
     pub transform_bind_group: Option<wgpu::BindGroup>,
+
+    #[cfg(feature = "debug_gltf")]
+    pub name: Option<String>,
+}
+
+impl std::fmt::Debug for MeshPrimitive {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut output = f.debug_struct("MeshPrimitive");
+
+        #[cfg(feature = "debug_gltf")]
+        output.field("name", &self.name);
+
+        output.finish()
+    }
 }
 
 const COLOR_BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> =
@@ -78,6 +98,9 @@ impl MeshPrimitive {
             texture_bind_group: None,
             transform_bind_group: None,
             transform_buffer: None,
+
+            #[cfg(feature = "debug_gltf")]
+            name: None,
         }
     }
 
@@ -174,6 +197,7 @@ pub struct Vertex {
     pub color: Option<[f32; 3]>,
 }
 
+#[derive(Debug)]
 pub struct Mesh {
     pub primitives: Vec<MeshPrimitive>,
 }
@@ -183,6 +207,18 @@ pub struct Node {
     pub meshes: Vec<Mesh>,
     pub transform: glam::Mat4,
     pub children: Vec<Node>,
+    #[cfg(feature = "debug_gltf")]
+    pub name: Option<String>,
+}
+
+impl std::fmt::Debug for Node {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Node")
+            .field("index", &self.index)
+            .field("meshes", &self.meshes)
+            .field("children", &self.children)
+            .finish()
+    }
 }
 
 impl IntoIterator for Node {
@@ -204,6 +240,9 @@ impl IntoIterator for Node {
     }
 }
 
+#[derive(Debug)]
 pub struct Scene {
     pub nodes: Vec<Node>,
+    #[cfg(feature = "debug_gltf")]
+    pub name: Option<String>,
 }
