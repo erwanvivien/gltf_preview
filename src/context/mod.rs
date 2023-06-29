@@ -4,7 +4,7 @@ use winit::{dpi::PhysicalSize, window::Window};
 pub use crate::context::texture::Texture;
 use crate::model::{MeshPrimitive, Scene};
 
-use self::render_pipeline::{AlbedoPipeline, TexturePipeline};
+use self::render_pipeline::{AlbedoPipeline, TexturePipeline, TransparentAlbedoPipeline};
 
 mod asset_store;
 mod camera;
@@ -27,6 +27,7 @@ pub struct DrawingContext {
     asset_world: asset_store::AssetWorld,
     texture_pipeline: TexturePipeline,
     albedo_pipeline: AlbedoPipeline,
+    transparent_albedo_pipeline: TransparentAlbedoPipeline,
 
     fill_color: wgpu::Color,
     /// Window has a dimension of 0
@@ -129,6 +130,8 @@ impl DrawingContext {
             &MeshPrimitive::color_bind_group_layout(&device),
         );
         let albedo_pipeline = AlbedoPipeline::new(&device, &config, camera.bind_group_layout());
+        let transparent_albedo_pipeline =
+            TransparentAlbedoPipeline::new(&device, &config, camera.bind_group_layout());
 
         let depth_texture = Texture::create_depth_texture(&device, &config);
 
@@ -148,6 +151,7 @@ impl DrawingContext {
             asset_world,
             texture_pipeline,
             albedo_pipeline,
+            transparent_albedo_pipeline,
 
             fill_color: wgpu::Color::BLACK,
             minimized: false,
