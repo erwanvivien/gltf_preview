@@ -11,8 +11,10 @@ pub const PRIMITIVE_STATE: wgpu::PrimitiveState = wgpu::PrimitiveState {
     conservative: false,
 };
 
+mod albedo;
 mod texture;
 
 trait RenderPipeline {}
 
+pub use albedo::{AlbedoPipeline, AlbedoVertex};
 pub use texture::{TexturePipeline, TextureVertex};

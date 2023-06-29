@@ -37,6 +37,9 @@ pub struct TextureBindGroup {
     pub bind_group: wgpu::BindGroup,
 }
 
+#[derive(Component)]
+pub struct Transparency;
+
 #[derive(Default)]
 pub struct AssetWorld {
     pub world: World,
@@ -119,6 +122,11 @@ impl AssetWorld {
                     texture: texture.0.clone(),
                     bind_group: mesh_primitive.texture_bind_group.take().unwrap(),
                 });
+            }
+
+            if mesh_primitive.material.blend_mode == wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING
+            {
+                entity.insert(Transparency);
             }
         }
 

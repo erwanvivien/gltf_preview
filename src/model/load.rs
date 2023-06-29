@@ -23,10 +23,17 @@ fn parse_material(global_gltf: &GlobalGltf, material: &gltf::Material) -> MeshMa
         .base_color_texture()
         .map(|texture| parse_texture(global_gltf, &texture.texture()));
 
+    let blend_mode = match material.alpha_mode() {
+        gltf::material::AlphaMode::Opaque => wgpu::BlendState::REPLACE,
+        gltf::material::AlphaMode::Mask => wgpu::BlendState::REPLACE,
+        gltf::material::AlphaMode::Blend => wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING,
+    };
+
     MeshMaterial {
         base_albedo: material_pbr.base_color_factor(),
         base_metallic: material_pbr.metallic_factor(),
         base_roughness: material_pbr.roughness_factor(),
+        blend_mode,
         texture,
     }
 }
@@ -40,6 +47,10 @@ fn parse_mesh_primitive(
 
     let reader =
         primitive.reader(|buffer| global_gltf.buffers.get(buffer.index()).map(|b| &b.0[..]));
+
+    // Use the default material if no material is set
+    let material_index = primitive.material().index().unwrap_or(0);
+    let material = parse_material(&global_gltf, &global_gltf.materials[material_index]);
 
     let positions = reader
         .read_positions()
@@ -62,7 +73,10 @@ fn parse_mesh_primitive(
             position: positions[i],
             normal: normals[i],
             tex_coord: tex_coords.as_ref().map(|tex| tex[i]),
-            color: colors.as_ref().map(|color| color[i]),
+            color: colors
+                .as_ref()
+                .map(|color| color[i])
+                .unwrap_or(material.base_albedo[0..3].try_into().unwrap()),
         };
 
         vertices.push(vertex);
@@ -71,10 +85,6 @@ fn parse_mesh_primitive(
     let indices = reader
         .read_indices()
         .map(|indices| indices.into_u32().collect::<Vec<_>>());
-
-    // Use the default material if no material is set
-    let material_index = primitive.material().index().unwrap_or(0);
-    let material = parse_material(&global_gltf, &global_gltf.materials[material_index]);
 
     Ok(MeshPrimitive::new(vertices, indices, material))
 }

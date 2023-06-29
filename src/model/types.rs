@@ -8,6 +8,7 @@ pub struct MeshMaterial {
     pub base_albedo: [f32; 4],
     pub base_metallic: f32,
     pub base_roughness: f32,
+    pub blend_mode: wgpu::BlendState,
     pub texture: Option<Texture>,
 }
 
@@ -147,6 +148,21 @@ impl MeshPrimitive {
                     usage: wgpu::BufferUsages::VERTEX,
                 },
             ));
+        } else {
+            use crate::context::render_pipeline::AlbedoVertex;
+            let albedo_vertices = self
+                .vertices
+                .iter()
+                .map(AlbedoVertex::new)
+                .collect::<Vec<_>>();
+
+            self.vertex_buffer = Some(device.create_buffer_init(
+                &wgpu::util::BufferInitDescriptor {
+                    label: Some("Vertex Buffer"),
+                    contents: bytemuck::cast_slice(&albedo_vertices),
+                    usage: wgpu::BufferUsages::VERTEX,
+                },
+            ));
         }
 
         let transform_bind_group_layout = get_or_create_transform_bind_group_layout(&device);
@@ -194,7 +210,7 @@ pub struct Vertex {
     pub position: [f32; 3],
     pub normal: [f32; 3],
     pub tex_coord: Option<[f32; 2]>,
-    pub color: Option<[f32; 3]>,
+    pub color: [f32; 3],
 }
 
 #[derive(Debug)]
