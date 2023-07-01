@@ -1,11 +1,11 @@
 use wgpu::{Device, SurfaceConfiguration};
 
-use crate::context::shaders::get_shader;
-use crate::context::texture::Texture;
+use crate::render::shaders::get_shader;
+use crate::render::texture::Texture;
 
-use crate::context::render_pipeline::PRIMITIVE_STATE;
-use crate::context::utils::get_or_create_transform_bind_group_layout;
-use crate::model::Vertex;
+use crate::render::asset_store::Vertex;
+use crate::render::render_pipeline::PRIMITIVE_STATE;
+use crate::render::utils::get_or_create_transform_bind_group_layout;
 
 pub struct TexturePipeline {
     pub pipeline: wgpu::RenderPipeline,
@@ -108,4 +108,4 @@ impl TexturePipeline {
     }
 }
 
-impl crate::context::render_pipeline::RenderPipeline for TexturePipeline {}
+impl crate::render::render_pipeline::RenderPipeline for TexturePipeline {}

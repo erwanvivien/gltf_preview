@@ -1,5 +1,5 @@
-use context::DrawingContext;
-use model::Scene;
+use render::DrawingContext;
+use render::Scene;
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
@@ -9,8 +9,8 @@ use winit::{
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-mod context;
-pub mod model;
+mod render;
+pub use crate::render::load_scenes;
 
 fn event_handler(
     event: Event<()>,

@@ -1,4 +1,6 @@
-use crate::model::types::{Mesh, MeshMaterial, MeshPrimitive, Node, Scene, Texture, Vertex};
+use crate::render::asset_store::types::{
+    Mesh, MeshMaterial, MeshPrimitive, Node, Scene, Texture, Vertex,
+};
 
 struct GlobalGltf<'a> {
     buffers: Vec<gltf::buffer::Data>,

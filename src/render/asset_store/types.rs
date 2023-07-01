@@ -1,6 +1,6 @@
 use wgpu::util::DeviceExt;
 
-use crate::context::utils::get_or_create_transform_bind_group_layout;
+use crate::render::utils::get_or_create_transform_bind_group_layout;
 
 pub struct Texture(pub gltf::image::Data);
 
@@ -111,7 +111,7 @@ impl MeshPrimitive {
         queue: &wgpu::Queue,
         transform: glam::Mat4,
     ) {
-        use crate::context::Texture;
+        use crate::render::Texture;
 
         if let Some(texture) = &self.material.texture {
             let color_texture = Texture::create_texture_from_image(&device, &queue, &texture.0);
@@ -134,7 +134,7 @@ impl MeshPrimitive {
 
             self.texture_bind_group = Some(texture_bind_group);
 
-            use crate::context::render_pipeline::TextureVertex;
+            use crate::render::render_pipeline::TextureVertex;
             let texture_vertices = self
                 .vertices
                 .iter()
@@ -149,7 +149,7 @@ impl MeshPrimitive {
                 },
             ));
         } else {
-            use crate::context::render_pipeline::AlbedoVertex;
+            use crate::render::render_pipeline::AlbedoVertex;
             let albedo_vertices = self
                 .vertices
                 .iter()

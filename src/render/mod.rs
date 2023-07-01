@@ -1,8 +1,9 @@
 use wgpu::{Adapter, Instance, Surface, TextureFormat};
 use winit::{dpi::PhysicalSize, window::Window};
 
-pub use crate::context::texture::Texture;
-use crate::model::{MeshPrimitive, Scene};
+use crate::render::asset_store::MeshPrimitive;
+pub use crate::render::asset_store::{load_scenes, Scene};
+pub use crate::render::texture::Texture;
 
 use self::render_pipeline::{AlbedoPipeline, TexturePipeline, TransparentAlbedoPipeline};
 
@@ -219,7 +220,7 @@ impl DrawingContext {
             render_pass.set_pipeline(&self.texture_pipeline.pipeline);
             render_pass.set_bind_group(2, self.camera.bind_group(), &[]);
 
-            use crate::context::asset_store::{Albedo, Indices, TextureBindGroup, Vertices};
+            use crate::render::asset_store::{Albedo, Indices, TextureBindGroup, Vertices};
             type Query<'a> = (
                 &'a Vertices,
                 &'a Albedo,
@@ -271,7 +272,7 @@ impl DrawingContext {
             render_pass.set_pipeline(&self.albedo_pipeline.pipeline);
             render_pass.set_bind_group(1, self.camera.bind_group(), &[]);
 
-            use crate::context::asset_store::{
+            use crate::render::asset_store::{
                 Albedo, Indices, TextureBindGroup, Transparency, Vertices,
             };
             use bevy_ecs::query::Without;

@@ -1,4 +1,8 @@
-use crate::model::{MeshPrimitive, Scene};
+mod load;
+mod types;
+
+pub use load::load_scenes;
+pub use types::{Mesh, MeshPrimitive, Scene, Texture, Vertex};
 
 use bevy_ecs::prelude::*;
 use wgpu::util::DeviceExt;
