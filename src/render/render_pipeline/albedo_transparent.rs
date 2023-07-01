@@ -70,7 +70,7 @@ impl TransparentAlbedoPipeline {
             module: &main_shader,
             entry_point: "fs_main",
             targets: &[Some(wgpu::ColorTargetState {
-                format: config.format,
+                format: config.format.add_srgb_suffix(),
                 blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
                 write_mask: wgpu::ColorWrites::ALL,
             })],

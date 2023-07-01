@@ -98,10 +98,8 @@ impl DrawingContext {
 
         shaders::build_shaders(&device).await;
 
+        // Shader code in this tutorial assumes an sRGB surface texture.
         let surface_capabilities = surface.get_capabilities(&adapter);
-        // Shader code in this tutorial assumes an sRGB surface texture. Using a different
-        // one will result all the colors coming out darker. If you want to support non
-        // sRGB surfaces, you'll need to account for that when drawing to the frame.
         let surface_format = surface_capabilities
             .formats
             .iter()
@@ -116,7 +114,7 @@ impl DrawingContext {
             height: size.height,
             present_mode: surface_capabilities.present_modes[0],
             alpha_mode: surface_capabilities.alpha_modes[0],
-            view_formats: vec![],
+            view_formats: vec![surface_format.add_srgb_suffix()],
         };
 
         surface.configure(&device, &config);
@@ -186,9 +184,10 @@ impl DrawingContext {
         }
 
         let output = self.surface.get_current_texture()?;
-        let view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
+        let view = output.texture.create_view(&wgpu::TextureViewDescriptor {
+            format: Some(self.config.format.add_srgb_suffix()),
+            ..Default::default()
+        });
 
         let mut encoder = self
             .device
