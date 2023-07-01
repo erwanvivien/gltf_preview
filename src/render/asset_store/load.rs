@@ -1,5 +1,6 @@
-use crate::render::asset_store::types::{
-    Mesh, MeshMaterial, MeshPrimitive, Node, Scene, Texture, Vertex,
+use crate::{
+    render::asset_store::types::{Mesh, MeshMaterial, MeshPrimitive, Node, Scene, Texture, Vertex},
+    utils::load_file_buffer,
 };
 
 struct GlobalGltf<'a> {
@@ -178,11 +179,13 @@ fn parse_scene(global_gltf: &GlobalGltf, scene: gltf::Scene) -> Result<Scene, ()
     })
 }
 
-pub fn load_scenes<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<Scene>, ()> {
+pub async fn load_scenes<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<Scene>, ()> {
     #[cfg(feature = "debug_gltf")]
     log::info!("⏹ Loading gltf file: {:?}", path.as_ref());
 
-    let (gltf, buffers, images) = gltf::import(&path).expect("Failed to load gltf file");
+    let file_buffer = load_file_buffer(&path).await.map_err(|_| ())?;
+    let (gltf, buffers, images) =
+        gltf::import_slice(&file_buffer).expect("Failed to load gltf file");
 
     let materials = gltf.materials().collect::<Vec<_>>();
 
@@ -195,9 +198,6 @@ pub fn load_scenes<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<Scene>, ()>
     let mut scenes = Vec::new();
     for scene in gltf.scenes() {
         let scene = parse_scene(&global_gltf, scene)?;
-
-        #[cfg(feature = "debug_gltf")]
-        dbg!(&scene);
         scenes.push(scene);
     }
 

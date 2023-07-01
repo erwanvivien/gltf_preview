@@ -1064,6 +1064,7 @@ dependencies = [
  "env_logger",
  "glam",
  "gltf",
+ "js-sys",
  "log",
  "pollster",
  "wasm-bindgen",

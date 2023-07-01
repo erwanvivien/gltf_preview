@@ -1,5 +1,4 @@
 use render::DrawingContext;
-use render::Scene;
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
@@ -10,6 +9,7 @@ use winit::{
 use wasm_bindgen::prelude::*;
 
 mod render;
+pub mod utils;
 pub use crate::render::load_scenes;
 
 fn event_handler(
@@ -113,9 +113,13 @@ fn init_window(window: &winit::window::Window) {
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
-pub async fn run(scenes: &mut [Scene]) {
+pub async fn run() {
     #[cfg(target_arch = "wasm32")]
     init_log();
+
+    let mut scenes = crate::load_scenes("assets/CesiumMilkTruck.glb")
+        .await
+        .unwrap();
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
@@ -123,7 +127,7 @@ pub async fn run(scenes: &mut [Scene]) {
     #[cfg(target_arch = "wasm32")]
     init_window(&window);
 
-    let mut drawing_context = DrawingContext::new(window, scenes).await;
+    let mut drawing_context = DrawingContext::new(window, &mut scenes).await;
 
     event_loop.run(move |event, event_loop_window_target, control_flow| {
         event_handler(

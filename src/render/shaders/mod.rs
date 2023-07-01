@@ -1,53 +1,44 @@
-use std::{collections::HashMap, path::Path, rc::Rc};
+use std::{collections::HashMap, rc::Rc};
+
+use crate::utils::load_file_string;
 
 static mut GLOBAL_SHADERS: Option<HashMap<String, Rc<wgpu::ShaderModule>>> = None;
 
-fn get_current_dir() -> &'static Path {
-    Path::new(file!()).parent().unwrap()
-}
+const SHADERS: [&str; 2] = ["albedo_shader", "texture_shader"];
 
-pub fn build_shaders(device: &wgpu::Device) {
-    let mut shaders = HashMap::new();
-
-    for file in std::fs::read_dir(get_current_dir()).expect("Could not read dir") {
-        let file = file.expect("Could not read file");
-        let path = file.path();
-
-        if path.extension() == Some("wgsl".as_ref()) {
-            #[cfg(feature = "debug_all")]
-            log::info!("Loading shader {:?}", &path);
-
-            let shader = std::fs::read_to_string(&path).expect("Could not read shader");
-            let name = path.file_stem().unwrap().to_str().unwrap();
-
-            let shader = wgpu::ShaderModuleDescriptor {
-                label: Some(name),
-                source: wgpu::ShaderSource::Wgsl(shader.into()),
-            };
-
-            let shader = device.create_shader_module(shader);
-
-            shaders.insert(String::from(name), Rc::new(shader));
-        }
-    }
-
-    unsafe {
-        GLOBAL_SHADERS = Some(shaders);
+pub async fn build_shaders(device: &wgpu::Device) {
+    for shader_name in SHADERS.iter() {
+        get_shader_or_build(shader_name, device).await;
     }
 }
 
 pub fn get_shader(name: &str) -> Rc<wgpu::ShaderModule> {
-    #[cfg(feature = "debug_all")]
+    #[cfg(feature = "debug_shader")]
     log::info!("Getting shader {:?}", name);
+
     unsafe { GLOBAL_SHADERS.as_ref() }.expect("Shaders not built")[name].clone()
 }
 
-pub fn _get_shader_or_build(name: &str, device: &wgpu::Device) -> Rc<wgpu::ShaderModule> {
-    let path = get_current_dir().join(format!("{}.wgsl", name));
-    assert!(path.exists(), "Shader {:?} does not exist", path);
+async fn get_shader_or_build(name: &str, device: &wgpu::Device) -> Rc<wgpu::ShaderModule> {
+    if unsafe { GLOBAL_SHADERS.as_ref() }.is_none() {
+        #[cfg(feature = "debug_shader")]
+        log::info!("Init shader storage");
+        unsafe { GLOBAL_SHADERS = Some(HashMap::new()) };
+    }
 
-    let shader = std::fs::read_to_string(&path).expect("Could not read shader");
-    let name = path.file_stem().unwrap().to_str().unwrap();
+    let global_shaders = unsafe { GLOBAL_SHADERS.as_mut() };
+    if global_shaders.as_ref().unwrap().contains_key(name) {
+        #[cfg(feature = "debug_shader")]
+        log::info!("Using cached shader {:?}", name);
+        return unsafe { GLOBAL_SHADERS.as_ref() }.unwrap()[name].clone();
+    }
+
+    #[cfg(feature = "debug_shader")]
+    log::info!("Building shader {:?}", name);
+
+    let shader = load_file_string(format!("assets/{}.wgsl", name))
+        .await
+        .expect("Could not read shader");
 
     let shader = wgpu::ShaderModuleDescriptor {
         label: Some(name),
@@ -57,7 +48,7 @@ pub fn _get_shader_or_build(name: &str, device: &wgpu::Device) -> Rc<wgpu::Shade
     let shader = device.create_shader_module(shader);
     let shader = Rc::new(shader);
 
-    unsafe { GLOBAL_SHADERS.as_mut() }
+    global_shaders
         .unwrap()
         .insert(String::from(name), shader.clone());
 

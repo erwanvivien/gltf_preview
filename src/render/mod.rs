@@ -96,7 +96,7 @@ impl DrawingContext {
             .await
             .expect("Failed to create device and queue");
 
-        shaders::build_shaders(&device);
+        shaders::build_shaders(&device).await;
 
         let surface_capabilities = surface.get_capabilities(&adapter);
         // Shader code in this tutorial assumes an sRGB surface texture. Using a different

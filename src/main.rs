@@ -11,8 +11,7 @@ fn main() -> Result<(), ()> {
     #[cfg(not(target_arch = "wasm32"))]
     init_log();
 
-    let mut scenes = mario_skurt::load_scenes("assets/CesiumMilkTruck.glb")?;
-    pollster::block_on(mario_skurt::run(&mut scenes));
+    pollster::block_on(mario_skurt::run());
 
     Ok(())
 }
