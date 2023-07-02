@@ -36,29 +36,20 @@ fn event_handler(
                 drawing_context.resize(**new_inner_size);
             }
             // When the window is closed
-            WindowEvent::CloseRequested
-            | WindowEvent::KeyboardInput {
-                input:
-                    KeyboardInput {
-                        state: ElementState::Pressed,
-                        virtual_keycode: Some(VirtualKeyCode::Escape),
-                        ..
-                    },
-                ..
-            } => *control_flow = ControlFlow::Exit,
+            WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
             WindowEvent::CursorMoved { position, .. } => {
-                #[cfg(feature = "debug_window")]
+                #[cfg(feature = "debug_input")]
                 log::trace!("Mouse moved to {:?}", position);
 
-                let size = drawing_context.size();
-                let size = winit::dpi::PhysicalSize::new(size.width as f64, size.height as f64);
-                let color = wgpu::Color {
-                    r: position.x / size.width,
-                    g: position.y / size.height,
-                    b: 0.5f64,
-                    a: 1.0f64,
-                };
-                drawing_context.set_fill_color(color);
+                drawing_context
+                    .input_manager
+                    .update_mouse_position(position)
+            }
+            WindowEvent::MouseInput { state, button, .. } => drawing_context
+                .input_manager
+                .update_mouse_button(button, state),
+            WindowEvent::KeyboardInput { input, .. } => {
+                drawing_context.input_manager.update_key(input)
             }
             _ => {}
         }
@@ -67,7 +58,7 @@ fn event_handler(
 
     match event {
         Event::RedrawRequested(window_id) if window_id == drawing_context.window().id() => {
-            // drawing_context.update();
+            drawing_context.process_inputs();
             match drawing_context.render() {
                 Ok(_) => {}
                 // Reconfigure the surface if lost

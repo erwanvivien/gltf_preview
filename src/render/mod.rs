@@ -24,6 +24,7 @@ pub struct DrawingContext {
     depth_texture: Texture,
 
     camera: camera::Camera,
+    pub input_manager: input_manager::InputManager,
 
     asset_world: asset_store::AssetWorld,
     texture_pipeline: TexturePipeline,
@@ -119,7 +120,8 @@ impl DrawingContext {
 
         surface.configure(&device, &config);
 
-        let camera = camera::Camera::new(&window, &device);
+        let mut camera = camera::Camera::new(&window, &device);
+        camera.set_camera((-3f32, 0.5f32, -3f32));
         camera.update_projection_matrix(&queue);
 
         let texture_pipeline = TexturePipeline::new(
@@ -136,6 +138,13 @@ impl DrawingContext {
 
         let asset_world = asset_store::AssetWorld::new(scenes, &device, &queue);
 
+        let fill_color = wgpu::Color {
+            r: 9f64 / 255f64,
+            g: 46f64 / 255f64,
+            b: 32f64 / 255f64,
+            a: 1.0,
+        };
+
         Self {
             config,
             device,
@@ -146,13 +155,14 @@ impl DrawingContext {
             depth_texture,
 
             camera,
+            input_manager: input_manager::InputManager::new(),
 
             asset_world,
             texture_pipeline,
             albedo_pipeline,
             transparent_albedo_pipeline,
 
-            fill_color: wgpu::Color::BLACK,
+            fill_color,
             minimized: false,
         }
     }
@@ -175,6 +185,66 @@ impl DrawingContext {
 
     pub fn reconfigure(&mut self) {
         self.resize(self.size);
+    }
+
+    fn capture_mouse(&mut self) {
+        use winit::window::CursorGrabMode;
+
+        if self.input_manager.is_focused {
+            return;
+        }
+
+        self.input_manager.update_focus(true);
+        self.input_manager.clear_state();
+        self.window.set_cursor_visible(false);
+        let _ = self.set_cursor_middle();
+
+        self.window
+            .set_cursor_grab(CursorGrabMode::Locked)
+            .or_else(|_| self.window.set_cursor_grab(CursorGrabMode::Confined))
+            .unwrap_or_else(|_e| {
+                #[cfg(feature = "debug_input")]
+                log::error!("Failed to capture mouse: {:?}", _e);
+            });
+    }
+
+    fn uncapture_mouse(&mut self) {
+        use winit::window::CursorGrabMode;
+
+        if !self.input_manager.is_focused {
+            return;
+        }
+
+        self.input_manager.update_focus(false);
+        let _ = self.window.set_cursor_grab(CursorGrabMode::None);
+        self.window.set_cursor_visible(true);
+
+        self.input_manager.clear_state();
+    }
+
+    pub fn process_inputs(&mut self) {
+        if self.input_manager.escape_pressed() && self.input_manager.is_focused {
+            #[cfg(feature = "debug_input")]
+            log::info!("Uncapturing mouse");
+            self.uncapture_mouse();
+        } else if self.input_manager.left_click_pressed() && !self.input_manager.is_focused {
+            #[cfg(feature = "debug_input")]
+            log::info!("Capturing mouse");
+            self.capture_mouse();
+        }
+
+        if !self.input_manager.is_focused {
+            return;
+        }
+
+        let direction: glam::Vec3 = self.input_manager.get_direction().into();
+        self.camera.move_camera(direction * 0.1f32);
+
+        let mouse_delta = self.input_manager.consume_mouse_delta();
+        self.camera
+            .move_yaw_pitch(mouse_delta.0 as f32, mouse_delta.1 as f32);
+
+        self.camera.update_projection_matrix(&self.queue);
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {

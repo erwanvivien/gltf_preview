@@ -1,9 +1,27 @@
 use winit::window::Window;
 
+#[derive(Debug, Clone, Copy)]
+enum Angle {
+    Radians(f32),
+    Degrees(f32),
+}
+
+impl Angle {
+    fn to_radians(&self) -> f32 {
+        match self {
+            Angle::Radians(radians) => *radians,
+            Angle::Degrees(degrees) => degrees.to_radians(),
+        }
+    }
+}
+
 pub struct Camera {
     eye: glam::Vec3,
-    target: glam::Vec3,
-    up: glam::Vec3,
+    // Horizontal angle
+    yaw: Angle,
+    // Vertical angle
+    pitch: Angle,
+
     aspect: f32,
     fovy: f32,
     znear: f32,
@@ -29,9 +47,9 @@ impl Camera {
     pub fn new(window: &Window, device: &wgpu::Device) -> Self {
         let inner_size = window.inner_size();
 
-        let eye = glam::vec3(10.0, 0.0, 10.0);
-        let target = glam::vec3(0.0, 0.0, 0.0);
-        let up = glam::Vec3::Y;
+        let eye = glam::vec3(0.0, 0.0, 0.0);
+        let yaw = Angle::Degrees(0f32);
+        let pitch = Angle::Degrees(0f32);
         let aspect = inner_size.width as f32 / inner_size.height as f32;
         let fovy = 45.0 / 180.0 * std::f32::consts::PI;
         let znear = 0.1;
@@ -65,8 +83,9 @@ impl Camera {
 
         Self {
             eye,
-            target,
-            up,
+            yaw,
+            pitch,
+
             aspect,
             fovy,
             znear,
@@ -78,8 +97,13 @@ impl Camera {
         }
     }
 
-    pub fn projection_matrix(&self) -> glam::Mat4 {
-        let view = glam::Mat4::look_at_lh(self.eye, self.target, self.up);
+    fn projection_matrix(&self) -> glam::Mat4 {
+        let (sin_pitch, cos_pitch) = self.pitch.to_radians().sin_cos();
+        let (sin_yaw, cos_yaw) = self.yaw.to_radians().sin_cos();
+
+        let forward = glam::Vec3::new(cos_yaw * cos_pitch, sin_pitch, sin_yaw * cos_pitch);
+
+        let view = glam::Mat4::look_to_lh(self.eye, forward.normalize(), glam::Vec3::Y);
         let projection = glam::Mat4::perspective_lh(self.fovy, self.aspect, self.znear, self.zfar);
 
         projection * view
@@ -89,6 +113,34 @@ impl Camera {
         let projection_matrix = self.projection_matrix();
 
         queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[projection_matrix]));
+    }
+
+    pub fn move_camera<P: Into<glam::Vec3>>(&mut self, direction: P) {
+        // Update direction to be relative to forward
+        // We are using *_lh functions, so we need to negate the yaw
+        let direction_forward =
+            glam::Quat::from_rotation_y(-self.yaw.to_radians()).mul_vec3(direction.into());
+
+        self.set_camera(self.eye + direction_forward);
+    }
+
+    pub fn set_camera<P: Into<glam::Vec3>>(&mut self, position: P) {
+        self.eye = position.into();
+    }
+
+    pub fn move_yaw_pitch(&mut self, yaw: f32, pitch: f32) {
+        const MAX_PITCH: f32 = std::f32::consts::FRAC_PI_2 - f32::EPSILON;
+
+        // If yaw and pitch are both 0, we don't need to do anything
+        if yaw.abs() < f32::EPSILON && pitch.abs() < f32::EPSILON {
+            return;
+        }
+
+        // Yaw is negative because we are using *_lh functions
+        self.yaw = Angle::Radians(self.yaw.to_radians() - yaw);
+        // Pitch is always negative
+        let pitch = (self.pitch.to_radians() - pitch).clamp(-MAX_PITCH, MAX_PITCH);
+        self.pitch = Angle::Radians(pitch);
     }
 
     pub fn bind_group(&self) -> &wgpu::BindGroup {

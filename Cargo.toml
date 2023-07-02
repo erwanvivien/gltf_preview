@@ -31,6 +31,7 @@ pollster = { version = "0.3.0" }
 bytemuck = { version = "1.13.1", features = ["derive"] }
 gltf = { version = "1.2.0", features = ["extras", "names", "import"] }
 glam = { version = "0.24.0", features = ["bytemuck"] }
+input_manager = { path = './src/input_manager' }
 
 [features]
 wasm = [
@@ -48,4 +49,11 @@ debug_gpu = []
 debug_gltf = []
 debug_window = []
 debug_shader = []
-debug_all = ["debug_gpu", "debug_gltf", "debug_window", "debug_shader"]
+debug_input = []
+debug_all = [
+    "debug_gpu",
+    "debug_gltf",
+    "debug_window",
+    "debug_shader",
+    "debug_input",
+]
