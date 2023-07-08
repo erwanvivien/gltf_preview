@@ -101,6 +101,8 @@ impl Texture {
         queue: &wgpu::Queue,
         image: &gltf::image::Data,
     ) -> Self {
+        use gltf::image::Format::{R8G8B8, R8G8B8A8};
+
         #[cfg(feature = "debug_gpu")]
         #[rustfmt::skip]
         log::info!("Texture {}x{} : {:?}", image.width, image.height, image.format);
@@ -111,7 +113,6 @@ impl Texture {
             depth_or_array_layers: 1,
         };
 
-        use gltf::image::Format::{R8G8B8, R8G8B8A8};
         assert!(
             matches!(image.format, R8G8B8 | R8G8B8A8),
             "Unsupported texture format"

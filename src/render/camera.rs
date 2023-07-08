@@ -45,6 +45,8 @@ const CAMERA_BUFFER_LAYOUT: wgpu::BindGroupLayoutEntry = wgpu::BindGroupLayoutEn
 
 impl Camera {
     pub fn new(window: &Window, device: &wgpu::Device) -> Self {
+        use wgpu::util::DeviceExt;
+
         let inner_size = window.inner_size();
 
         let eye = glam::vec3(0.0, 0.0, 0.0);
@@ -55,7 +57,6 @@ impl Camera {
         let znear = 0.1;
         let zfar = 10000.0;
 
-        use wgpu::util::DeviceExt;
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
             contents: bytemuck::cast_slice(&[glam::Mat4::IDENTITY]),

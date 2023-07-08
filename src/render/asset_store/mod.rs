@@ -50,13 +50,10 @@ pub struct AssetWorld {
 }
 
 fn create_index(mesh_primitive: &MeshPrimitive, device: &wgpu::Device) -> Option<Indices> {
-    if mesh_primitive.indices.is_none() {
-        return None;
-    }
-
-    let indices = mesh_primitive.indices.as_ref().unwrap();
-
     use wgpu::IndexFormat::{Uint16, Uint32};
+
+    let indices = mesh_primitive.indices.as_ref()?;
+
     if mesh_primitive.vertices.len() > u16::MAX as usize {
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Index Buffer"),
@@ -69,7 +66,10 @@ fn create_index(mesh_primitive: &MeshPrimitive, device: &wgpu::Device) -> Option
             format: Uint32,
         })
     } else {
-        let indices = indices.iter().map(|i| *i as u16).collect::<Vec<u16>>();
+        let indices = indices
+            .iter()
+            .map(|i| u16::try_from(*i).unwrap())
+            .collect::<Vec<u16>>();
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Index Buffer"),
             contents: bytemuck::cast_slice(indices.as_slice()),
@@ -99,7 +99,7 @@ impl AssetWorld {
             .collect::<Vec<_>>();
 
         for (mesh_primitive, transform) in &mut mesh_primitives {
-            mesh_primitive.create_texture_and_vertex_buffers(&device, &queue, *transform);
+            mesh_primitive.create_texture_and_vertex_buffers(device, queue, *transform);
 
             let mut entity = world.spawn((
                 Vertices {
@@ -117,7 +117,7 @@ impl AssetWorld {
                 },
             ));
 
-            if let Some(indices) = create_index(mesh_primitive, &device) {
+            if let Some(indices) = create_index(mesh_primitive, device) {
                 entity.insert(indices);
             }
 

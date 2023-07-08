@@ -7,11 +7,9 @@ fn init_log() {
         .init();
 }
 
-fn main() -> Result<(), ()> {
+fn main() {
     #[cfg(not(target_arch = "wasm32"))]
     init_log();
 
     pollster::block_on(mario_skurt::run());
-
-    Ok(())
 }

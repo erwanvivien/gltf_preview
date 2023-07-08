@@ -128,7 +128,7 @@ impl DrawingContext {
             &device,
             &config,
             camera.bind_group_layout(),
-            &MeshPrimitive::color_bind_group_layout(&device),
+            MeshPrimitive::color_bind_group_layout(&device),
         );
         let albedo_pipeline = AlbedoPipeline::new(&device, &config, camera.bind_group_layout());
         let transparent_albedo_pipeline =
@@ -199,13 +199,15 @@ impl DrawingContext {
         self.window.set_cursor_visible(false);
         let _ = self.set_cursor_middle();
 
-        self.window
+        let _res = self
+            .window
             .set_cursor_grab(CursorGrabMode::Locked)
-            .or_else(|_| self.window.set_cursor_grab(CursorGrabMode::Confined))
-            .unwrap_or_else(|_e| {
-                #[cfg(feature = "debug_input")]
-                log::error!("Failed to capture mouse: {:?}", _e);
-            });
+            .or_else(|_| self.window.set_cursor_grab(CursorGrabMode::Confined));
+
+        #[cfg(feature = "debug_input")]
+        if let Err(e) = _res {
+            log::error!("Failed to capture mouse: {}", e);
+        }
     }
 
     fn uncapture_mouse(&mut self) {
@@ -256,7 +258,7 @@ impl DrawingContext {
 
         let size = self.window.inner_size();
         let new_position =
-            PhysicalPosition::new(size.width as f64 / 2f64, size.height as f64 / 2f64);
+            PhysicalPosition::new(f64::from(size.width) / 2f64, f64::from(size.height) / 2f64);
         self.input_manager.set_mouse_middle(&new_position);
 
         self.window.set_cursor_position(new_position)
@@ -281,6 +283,14 @@ impl DrawingContext {
             });
 
         {
+            use crate::render::asset_store::{Albedo, Indices, TextureBindGroup, Vertices};
+            type Query<'a> = (
+                &'a Vertices,
+                &'a Albedo,
+                Option<&'a Indices>,
+                &'a TextureBindGroup,
+            );
+
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Texture Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -304,14 +314,6 @@ impl DrawingContext {
             render_pass.set_pipeline(&self.texture_pipeline.pipeline);
             render_pass.set_bind_group(2, self.camera.bind_group(), &[]);
 
-            use crate::render::asset_store::{Albedo, Indices, TextureBindGroup, Vertices};
-            type Query<'a> = (
-                &'a Vertices,
-                &'a Albedo,
-                Option<&'a Indices>,
-                &'a TextureBindGroup,
-            );
-
             for (vertices, _albedo, indices, texture) in self
                 .asset_world
                 .world
@@ -333,6 +335,12 @@ impl DrawingContext {
         }
 
         {
+            use crate::render::asset_store::{
+                Albedo, Indices, TextureBindGroup, Transparency, Vertices,
+            };
+            use bevy_ecs::query::Without;
+            type Query<'a> = (&'a Vertices, &'a Albedo, Option<&'a Indices>);
+
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Object Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -355,12 +363,6 @@ impl DrawingContext {
 
             render_pass.set_pipeline(&self.albedo_pipeline.pipeline);
             render_pass.set_bind_group(1, self.camera.bind_group(), &[]);
-
-            use crate::render::asset_store::{
-                Albedo, Indices, TextureBindGroup, Transparency, Vertices,
-            };
-            use bevy_ecs::query::Without;
-            type Query<'a> = (&'a Vertices, &'a Albedo, Option<&'a Indices>);
 
             for (vertices, _albedo, indices) in self
                 .asset_world
@@ -398,13 +400,5 @@ impl DrawingContext {
 impl DrawingContext {
     pub fn window(&self) -> &Window {
         &self.window
-    }
-
-    pub fn size(&self) -> &PhysicalSize<u32> {
-        &self.size
-    }
-
-    pub fn set_fill_color(&mut self, color: wgpu::Color) {
-        self.fill_color = color;
     }
 }

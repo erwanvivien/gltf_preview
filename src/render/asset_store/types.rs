@@ -111,14 +111,15 @@ impl MeshPrimitive {
         queue: &wgpu::Queue,
         transform: glam::Mat4,
     ) {
+        use crate::render::render_pipeline::{AlbedoVertex, TextureVertex};
         use crate::render::Texture;
 
         if let Some(texture) = &self.material.texture {
-            let color_texture = Texture::create_texture_from_image(&device, &queue, &texture.0);
+            let color_texture = Texture::create_texture_from_image(device, queue, &texture.0);
 
-            let color_bind_group_layout = MeshPrimitive::color_bind_group_layout(&device);
+            let color_bind_group_layout = MeshPrimitive::color_bind_group_layout(device);
             let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                layout: &color_bind_group_layout,
+                layout: color_bind_group_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
@@ -126,7 +127,7 @@ impl MeshPrimitive {
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&color_texture.sampler),
+                        resource: wgpu::BindingResource::Sampler(color_texture.sampler),
                     },
                 ],
                 label: Some("Color Bind Group"),
@@ -134,7 +135,6 @@ impl MeshPrimitive {
 
             self.texture_bind_group = Some(texture_bind_group);
 
-            use crate::render::render_pipeline::TextureVertex;
             let texture_vertices = self
                 .vertices
                 .iter()
@@ -149,7 +149,6 @@ impl MeshPrimitive {
                 },
             ));
         } else {
-            use crate::render::render_pipeline::AlbedoVertex;
             let albedo_vertices = self
                 .vertices
                 .iter()
@@ -165,7 +164,7 @@ impl MeshPrimitive {
             ));
         }
 
-        let transform_bind_group_layout = get_or_create_transform_bind_group_layout(&device);
+        let transform_bind_group_layout = get_or_create_transform_bind_group_layout(device);
         let transform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Transform Buffer"),
             contents: bytemuck::cast_slice(&[transform]),
@@ -173,7 +172,7 @@ impl MeshPrimitive {
         });
 
         let transform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &transform_bind_group_layout,
+            layout: transform_bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: transform_buffer.as_entire_binding(),
@@ -193,11 +192,8 @@ impl MeshPrimitive {
         });
 
         self.index_buffer = index_buffer;
-        self.index_count = self
-            .indices
-            .as_ref()
-            .map(Vec::len)
-            .unwrap_or(self.vertices.len()) as u32;
+        let index_count = self.indices.as_ref().map_or(self.vertices.len(), Vec::len);
+        self.index_count = u32::try_from(index_count).expect("Not a valid index count");
     }
 
     pub fn get_bind_group_layout(&self) -> Option<&wgpu::BindGroup> {

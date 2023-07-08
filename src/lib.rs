@@ -1,6 +1,6 @@
 use render::DrawingContext;
 use winit::{
-    event::*,
+    event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
     window::WindowBuilder,
 };
@@ -13,7 +13,7 @@ pub mod utils;
 pub use crate::render::load_scenes;
 
 fn event_handler(
-    event: Event<()>,
+    event: &Event<()>,
     _event_loop_window_target: &EventLoopWindowTarget<()>,
     control_flow: &mut ControlFlow,
     drawing_context: &mut DrawingContext,
@@ -45,13 +45,13 @@ fn event_handler(
                 let _ = drawing_context.set_cursor_middle();
                 drawing_context
                     .input_manager
-                    .update_mouse_position(position)
+                    .update_mouse_position(position);
             }
             WindowEvent::MouseInput { state, button, .. } => drawing_context
                 .input_manager
                 .update_mouse_button(button, state),
             WindowEvent::KeyboardInput { input, .. } => {
-                drawing_context.input_manager.update_key(input)
+                drawing_context.input_manager.update_key(input);
             }
             _ => {}
         }
@@ -64,7 +64,7 @@ fn event_handler(
         Event::DeviceEvent { event: DeviceEvent::MouseMotion { delta }, ..  } => {
             drawing_context.input_manager.update_mouse_delta(&delta);
         }
-        Event::RedrawRequested(window_id) if window_id == drawing_context.window().id() => {
+        Event::RedrawRequested(window_id) if *window_id == drawing_context.window().id() => {
             drawing_context.process_inputs();
             match drawing_context.render() {
                 Ok(_) => {}
@@ -110,6 +110,12 @@ fn init_window(window: &winit::window::Window) {
         .expect("Couldn't append canvas to document body.");
 }
 
+/// Run the application
+///
+/// # Panics
+///
+/// - If the application fails to initialize.
+/// - If the application fails to load the scene.
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub async fn run() {
     #[cfg(target_arch = "wasm32")]
@@ -129,10 +135,10 @@ pub async fn run() {
 
     event_loop.run(move |event, event_loop_window_target, control_flow| {
         event_handler(
-            event,
+            &event,
             event_loop_window_target,
             control_flow,
             &mut drawing_context,
-        )
+        );
     });
 }

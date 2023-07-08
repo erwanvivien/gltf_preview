@@ -75,10 +75,16 @@ pub struct InputManager {
 }
 
 impl InputManager {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Returns true if the action is pressed
+    ///
+    /// # Panics
+    ///
+    /// Cannot panic
     pub fn update_key(&mut self, input: &KeyboardInput) {
         #[rustfmt::skip]
         let KeyboardInput { virtual_keycode, state, .. } = *input;
@@ -141,6 +147,11 @@ impl InputManager {
 
 /// Save and load the input manager to/from a file
 impl InputManager {
+    /// Save the input manager to predifined file on disk
+    ///
+    /// # Panics
+    ///
+    /// Panics if the file cannot be created
     #[cfg(not(target_arch = "wasm32"))]
     pub fn save(&self) {
         #[cfg(feature = "debug_input")]
@@ -150,6 +161,11 @@ impl InputManager {
         ron::ser::to_writer(&mut file, &self).unwrap();
     }
 
+    /// Save the input manager to predifined file in local storage
+    ///
+    /// # Panics
+    ///
+    /// Panics if the file cannot be created
     #[cfg(target_arch = "wasm32")]
     pub fn save(&self) {
         #[cfg(feature = "debug_input")]
@@ -162,15 +178,27 @@ impl InputManager {
         storage.set_item("input_manager", &settings).unwrap();
     }
 
+    /// Load the input manager from predifined file on disk
+    ///
+    /// # Panics
+    ///
+    /// Panics if the file does not exist
+    #[must_use]
     #[cfg(not(target_arch = "wasm32"))]
     pub fn from_file() -> Self {
         #[cfg(feature = "debug_input")]
         log::info!("Loading input settings from file");
 
         let file = std::fs::File::open("input_manager.ron").unwrap();
-        ron::de::from_reader(&file).unwrap()
+        ron::de::from_reader(&file).unwrap_or_default()
     }
 
+    /// Load the input manager from predifined file in local storage
+    ///
+    /// # Panics
+    ///
+    /// Panics if the file does not exist
+    #[must_use]
     #[cfg(target_arch = "wasm32")]
     pub fn from_file() -> Self {
         #[cfg(feature = "debug_input")]
@@ -180,7 +208,7 @@ impl InputManager {
         let storage = window.local_storage().unwrap().unwrap();
 
         let settings = storage.get_item("input_manager").unwrap().unwrap();
-        ron::de::from_str(&settings).unwrap()
+        ron::de::from_str(&settings).unwrap_or_default()
     }
 }
 

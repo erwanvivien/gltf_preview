@@ -7,7 +7,7 @@ static mut GLOBAL_SHADERS: Option<HashMap<String, Rc<wgpu::ShaderModule>>> = Non
 const SHADERS: [&str; 2] = ["albedo_shader", "texture_shader"];
 
 pub async fn build_shaders(device: &wgpu::Device) {
-    for shader_name in SHADERS.iter() {
+    for shader_name in &SHADERS {
         get_shader_or_build(shader_name, device).await;
     }
 }
@@ -36,7 +36,7 @@ async fn get_shader_or_build(name: &str, device: &wgpu::Device) -> Rc<wgpu::Shad
     #[cfg(feature = "debug_shader")]
     log::info!("Building shader {:?}", name);
 
-    let shader = load_file_string(format!("assets/{}.wgsl", name))
+    let shader = load_file_string(format!("assets/{name}.wgsl"))
         .await
         .expect("Could not read shader");
 

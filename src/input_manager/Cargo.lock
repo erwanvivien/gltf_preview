@@ -277,6 +277,7 @@ dependencies = [
  "log",
  "ron",
  "serde",
+ "web-sys",
  "winit",
 ]
 
@@ -1123,6 +1124,7 @@ dependencies = [
  "raw-window-handle",
  "redox_syscall",
  "sctk-adwaita",
+ "serde",
  "smithay-client-toolkit",
  "wasm-bindgen",
  "wayland-client",
