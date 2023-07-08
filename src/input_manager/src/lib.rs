@@ -109,6 +109,10 @@ impl InputManager {
         self.update_mouse_delta(&delta);
     }
 
+    pub fn set_mouse_middle(&mut self, position: &PhysicalPosition<f64>) {
+        self.previous_mouse_position = *position;
+    }
+
     pub fn update_mouse_delta(&mut self, delta: &(f64, f64)) {
         self.mouse_delta.0 += delta.0 * self.mouse_sensitivity.0;
         self.mouse_delta.1 += delta.1 * self.mouse_sensitivity.1;

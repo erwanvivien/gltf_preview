@@ -37,10 +37,12 @@ fn event_handler(
             }
             // When the window is closed
             WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+            #[cfg(not(target_arch = "wasm32"))]
             WindowEvent::CursorMoved { position, .. } => {
                 #[cfg(feature = "debug_input")]
                 log::trace!("Mouse moved to {:?}", position);
 
+                let _ = drawing_context.set_cursor_middle();
                 drawing_context
                     .input_manager
                     .update_mouse_position(position)
@@ -57,6 +59,11 @@ fn event_handler(
     }
 
     match event {
+        #[rustfmt::skip]
+        #[cfg(target_arch = "wasm32")]
+        Event::DeviceEvent { event: DeviceEvent::MouseMotion { delta }, ..  } => {
+            drawing_context.input_manager.update_mouse_delta(&delta);
+        }
         Event::RedrawRequested(window_id) if window_id == drawing_context.window().id() => {
             drawing_context.process_inputs();
             match drawing_context.render() {

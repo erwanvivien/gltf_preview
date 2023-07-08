@@ -247,6 +247,21 @@ impl DrawingContext {
         self.camera.update_projection_matrix(&self.queue);
     }
 
+    pub fn set_cursor_middle(&mut self) -> Result<(), winit::error::ExternalError> {
+        use winit::dpi::PhysicalPosition;
+
+        if !self.input_manager.is_focused {
+            return Ok(());
+        }
+
+        let size = self.window.inner_size();
+        let new_position =
+            PhysicalPosition::new(size.width as f64 / 2f64, size.height as f64 / 2f64);
+        self.input_manager.set_mouse_middle(&new_position);
+
+        self.window.set_cursor_position(new_position)
+    }
+
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         if self.minimized {
             self.maintain();
