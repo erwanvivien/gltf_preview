@@ -3,6 +3,21 @@ use crate::{
     utils::load_file_buffer,
 };
 
+#[cfg(feature = "debug_gltf")]
+static mut INDENT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+#[cfg(feature = "debug_gltf")]
+use std::sync::atomic::Ordering;
+
+#[cfg(feature = "debug_gltf")]
+fn indent() -> String {
+    let indentation = unsafe { INDENT.load(Ordering::Relaxed) };
+    if indentation == 0 {
+        return String::new();
+    }
+
+    format!("{}└", " ".repeat(indentation - 1))
+}
+
 struct GlobalGltf<'a> {
     buffers: Vec<gltf::buffer::Data>,
     materials: Vec<gltf::Material<'a>>,
@@ -21,7 +36,7 @@ fn parse_material(global_gltf: &GlobalGltf, material: &gltf::Material) -> MeshMa
 
     #[cfg(feature = "debug_gltf")]
     #[rustfmt::skip]
-    log::info!("      > Material#{:?}: {:?}", material.index(), material.name());
+    log::info!("      {}> Material#{:?}: {:?}", indent(), material.index(), material.name());
 
     let material_pbr = material.pbr_metallic_roughness();
     let texture = material_pbr
@@ -47,7 +62,7 @@ fn parse_mesh_primitive(
     primitive: &gltf::Primitive,
 ) -> Result<MeshPrimitive, ()> {
     #[cfg(feature = "debug_gltf")]
-    log::info!("    > Primitive#{:?}", primitive.index());
+    log::info!("    {}> Primitive#{:?}", indent(), primitive.index());
 
     let reader =
         primitive.reader(|buffer| global_gltf.buffers.get(buffer.index()).map(|b| &b.0[..]));
@@ -87,7 +102,7 @@ fn parse_mesh_primitive(
 
 fn parse_mesh(global_gltf: &GlobalGltf, mesh: &gltf::Mesh) -> Result<Mesh, ()> {
     #[cfg(feature = "debug_gltf")]
-    log::info!("  > Mesh#{:?}: {:?}", mesh.index(), mesh.name());
+    log::info!("  {}> Mesh#{:?}: {:?}", indent(), mesh.index(), mesh.name());
 
     let mut primitives = Vec::new();
     for primitive in mesh.primitives() {
@@ -106,7 +121,7 @@ fn parse_node(global_gltf: &GlobalGltf, node: &gltf::Node) -> Result<Node, ()> {
     use gltf::scene::Transform;
 
     #[cfg(feature = "debug_gltf")]
-    log::info!("> Node#{:?}: {:?}", node.index(), node.name());
+    log::info!("{}> Node#{:?}: {:?}", indent(), node.index(), node.name());
 
     let mut meshes = Vec::new();
     if let Some(mesh) = node.mesh() {
@@ -126,10 +141,16 @@ fn parse_node(global_gltf: &GlobalGltf, node: &gltf::Node) -> Result<Node, ()> {
         }
     };
 
+    #[cfg(feature = "debug_gltf")]
+    let _ = unsafe { INDENT.fetch_add(1, Ordering::Relaxed) };
+
     let children: Vec<Node> = node
         .children()
         .map(|child| parse_node(global_gltf, &child))
         .collect::<Result<_, _>>()?;
+
+    #[cfg(feature = "debug_gltf")]
+    let _ = unsafe { INDENT.fetch_sub(1, Ordering::Relaxed) };
 
     Ok(Node {
         index: node.index(),
@@ -145,6 +166,8 @@ fn parse_node(global_gltf: &GlobalGltf, node: &gltf::Node) -> Result<Node, ()> {
 fn parse_scene(global_gltf: &GlobalGltf, scene: &gltf::Scene) -> Result<Scene, ()> {
     #[cfg(feature = "debug_gltf")]
     log::info!("Scene: {:?}", scene.name());
+    #[cfg(feature = "debug_gltf")]
+    let _ = unsafe { INDENT.store(1, Ordering::Relaxed) };
 
     fn get_children_nodes(nodes: &mut Vec<Node>, mut current: Node) -> &mut Vec<Node> {
         for child in current.children.drain(..) {
