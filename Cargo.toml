@@ -1,5 +1,5 @@
 [package]
-name = "mario-skurt"
+name = "mario_skurt"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,6 +7,9 @@ edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "mario_skurt"
 
 [dependencies]
 env_logger = { version = "0.10" }
@@ -32,6 +35,9 @@ bytemuck = { version = "1.13.1", features = ["derive"] }
 gltf = { version = "1.2.0", features = ["extras", "names", "import"] }
 glam = { version = "0.24.0", features = ["bytemuck"] }
 input_manager = { path = './src/input_manager' }
+mikktspace = { version = "0.3.0", features = [
+    "glam",
+], default-features = false }
 
 [features]
 wasm = [

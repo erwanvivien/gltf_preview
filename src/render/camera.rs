@@ -52,6 +52,7 @@ impl Camera {
         let eye = glam::vec3(0.0, 0.0, 0.0);
         let yaw = Angle::Degrees(0f32);
         let pitch = Angle::Degrees(0f32);
+
         let aspect = inner_size.width as f32 / inner_size.height as f32;
         let fovy = 45.0 / 180.0 * std::f32::consts::PI;
         let znear = 0.1;

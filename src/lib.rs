@@ -10,7 +10,6 @@ use wasm_bindgen::prelude::*;
 
 mod render;
 pub mod utils;
-pub use crate::render::load_scenes;
 
 fn event_handler(
     event: &Event<()>,
@@ -61,7 +60,7 @@ fn event_handler(
     match event {
         #[rustfmt::skip]
         #[cfg(target_arch = "wasm32")]
-        Event::DeviceEvent { event: DeviceEvent::MouseMotion { delta }, ..  } => {
+        Event::DeviceEvent { event: winit::event::DeviceEvent::MouseMotion { delta }, ..  } => {
             drawing_context.input_manager.update_mouse_delta(&delta);
         }
         Event::RedrawRequested(window_id) if *window_id == drawing_context.window().id() => {
@@ -121,17 +120,13 @@ pub async fn run() {
     #[cfg(target_arch = "wasm32")]
     init_log();
 
-    let mut scenes = crate::load_scenes("assets/CesiumMilkTruck.glb")
-        .await
-        .unwrap();
-
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
     #[cfg(target_arch = "wasm32")]
     init_window(&window);
 
-    let mut drawing_context = DrawingContext::new(window, &mut scenes).await;
+    let mut drawing_context = DrawingContext::new(window).await;
 
     event_loop.run(move |event, event_loop_window_target, control_flow| {
         event_handler(
