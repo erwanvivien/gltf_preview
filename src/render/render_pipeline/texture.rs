@@ -1,44 +1,20 @@
 use wgpu::{Device, SurfaceConfiguration};
 
+use crate::render::asset_store::{PerPrimitive, PrimitiveVertex};
 use crate::render::shaders::get_shader;
 use crate::render::texture::Texture;
 
-use crate::render::asset_store::Vertex;
 use crate::render::render_pipeline::PRIMITIVE_STATE;
-use crate::render::utils::get_or_create_transform_bind_group_layout;
 
 pub struct TexturePipeline {
     pub pipeline: wgpu::RenderPipeline,
 }
 
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct TextureVertex {
-    position: [f32; 3],
-    normal: [f32; 3],
-    tex_coords: [f32; 2],
-}
+impl std::ops::Deref for TexturePipeline {
+    type Target = wgpu::RenderPipeline;
 
-impl TextureVertex {
-    pub fn new(vertex: &Vertex) -> Self {
-        Self {
-            position: vertex.position,
-            normal: vertex.normal,
-            tex_coords: vertex
-                .tex_coord
-                .expect("Vertex must have texture coordinates"),
-        }
-    }
-
-    pub const fn desc() -> wgpu::VertexBufferLayout<'static> {
-        const ATTRIBUTES: [wgpu::VertexAttribute; 3] =
-            wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2];
-
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Self>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &ATTRIBUTES,
-        }
+    fn deref(&self) -> &Self::Target {
+        &self.pipeline
     }
 }
 
@@ -54,23 +30,17 @@ impl TexturePipeline {
 
         let main_shader = get_shader("texture_shader");
 
-        let transform_bind_group_layout = get_or_create_transform_bind_group_layout(device);
-
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Main Render Pipeline Layout"),
-                bind_group_layouts: &[
-                    texture_bind_group_layout,
-                    transform_bind_group_layout,
-                    camera_bind_group_layout,
-                ],
+                bind_group_layouts: &[camera_bind_group_layout, texture_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
         let vertex_state = wgpu::VertexState {
             module: &main_shader,
             entry_point: "vs_main",
-            buffers: &[TextureVertex::desc()],
+            buffers: &[PrimitiveVertex::desc(), PerPrimitive::transform_desc()],
         };
 
         let fragment_state = wgpu::FragmentState {

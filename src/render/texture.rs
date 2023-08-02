@@ -4,6 +4,65 @@ pub struct Texture {
     pub sampler: &'static wgpu::Sampler,
 }
 
+impl Texture {
+    const COLOR_TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> =
+        wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+            label: Some("Color Bind Group Layout"),
+        };
+
+    #[inline]
+    pub fn color_texture_bind_group_layout(device: &wgpu::Device) -> &wgpu::BindGroupLayout {
+        static mut COLOR_TEXTURE_BIND_GROUP_LAYOUT: Option<wgpu::BindGroupLayout> = None;
+
+        if unsafe { COLOR_TEXTURE_BIND_GROUP_LAYOUT.is_none() } {
+            let color_bind_group_layout =
+                device.create_bind_group_layout(&Self::COLOR_TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR);
+
+            unsafe {
+                COLOR_TEXTURE_BIND_GROUP_LAYOUT = Some(color_bind_group_layout);
+            }
+        }
+
+        unsafe { COLOR_TEXTURE_BIND_GROUP_LAYOUT.as_ref().unwrap() }
+    }
+
+    pub fn create_bind_group(&self, device: &wgpu::Device) -> wgpu::BindGroup {
+        let bind_group_layout = Self::color_texture_bind_group_layout(device);
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&self.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(self.sampler),
+                },
+            ],
+            label: Some("Color Texture Bind Group"),
+        })
+    }
+}
+
 const DEPTH_SAMPLER_DESCRIPTOR: wgpu::SamplerDescriptor = wgpu::SamplerDescriptor {
     address_mode_u: wgpu::AddressMode::ClampToEdge,
     address_mode_v: wgpu::AddressMode::ClampToEdge,

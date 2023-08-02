@@ -1,11 +1,9 @@
 use wgpu::{Adapter, Instance, Surface, TextureFormat};
 use winit::{dpi::PhysicalSize, window::Window};
 
-use crate::render::asset_store::MeshPrimitive;
-pub use crate::render::asset_store::{load_scenes, Scene};
 pub use crate::render::texture::Texture;
 
-use self::render_pipeline::{AlbedoPipeline, TexturePipeline, TransparentAlbedoPipeline};
+use self::render_pipeline::{AlbedoPipeline, TexturePipeline};
 
 mod asset_store;
 mod camera;
@@ -26,10 +24,9 @@ pub struct DrawingContext {
     camera: camera::Camera,
     pub input_manager: input_manager::InputManager,
 
-    asset_world: asset_store::AssetWorld,
+    asset_registry: asset_store::AssetRegistry,
     texture_pipeline: TexturePipeline,
     albedo_pipeline: AlbedoPipeline,
-    transparent_albedo_pipeline: TransparentAlbedoPipeline,
 
     fill_color: wgpu::Color,
     /// Window has a dimension of 0
@@ -64,7 +61,7 @@ async fn get_adaptater(instance: &Instance, surface: &Surface) -> Adapter {
 }
 
 impl DrawingContext {
-    pub async fn new(window: Window, scenes: &mut [Scene]) -> Self {
+    pub async fn new(window: Window) -> DrawingContext {
         let device_descriptor = wgpu::DeviceDescriptor {
             features: wgpu::Features::empty(),
             #[cfg(not(feature = "webgl"))]
@@ -128,15 +125,14 @@ impl DrawingContext {
             &device,
             &config,
             camera.bind_group_layout(),
-            MeshPrimitive::color_bind_group_layout(&device),
+            Texture::color_texture_bind_group_layout(&device),
         );
         let albedo_pipeline = AlbedoPipeline::new(&device, &config, camera.bind_group_layout());
-        let transparent_albedo_pipeline =
-            TransparentAlbedoPipeline::new(&device, &config, camera.bind_group_layout());
 
         let depth_texture = Texture::create_depth_texture(&device, &config);
 
-        let asset_world = asset_store::AssetWorld::new(scenes, &device, &queue);
+        const ASSETS: &[&str] = &["assets/CesiumMilkTruck.glb"];
+        let asset_registry = asset_store::AssetRegistry::new(&device, &queue, ASSETS).await;
 
         let fill_color = wgpu::Color {
             r: 9f64 / 255f64,
@@ -157,10 +153,9 @@ impl DrawingContext {
             camera,
             input_manager: input_manager::InputManager::new(),
 
-            asset_world,
+            asset_registry,
             texture_pipeline,
             albedo_pipeline,
-            transparent_albedo_pipeline,
 
             fill_color,
             minimized: false,
@@ -283,14 +278,6 @@ impl DrawingContext {
             });
 
         {
-            use crate::render::asset_store::{Albedo, Indices, TextureBindGroup, Vertices};
-            type Query<'a> = (
-                &'a Vertices,
-                &'a Albedo,
-                Option<&'a Indices>,
-                &'a TextureBindGroup,
-            );
-
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Texture Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -311,75 +298,34 @@ impl DrawingContext {
                 }),
             });
 
-            render_pass.set_pipeline(&self.texture_pipeline.pipeline);
-            render_pass.set_bind_group(2, self.camera.bind_group(), &[]);
+            render_pass.set_pipeline(&self.texture_pipeline);
+            render_pass.set_bind_group(0, self.camera.bind_group(), &[]);
 
-            for (vertices, _albedo, indices, texture) in self
-                .asset_world
-                .world
-                .query::<Query>()
-                .iter(&self.asset_world.world)
-            {
-                render_pass.set_bind_group(0, &texture.bind_group, &[]);
-                render_pass.set_bind_group(1, &vertices.transform_bind_group, &[]);
-                render_pass.set_vertex_buffer(0, vertices.buffer.slice(..));
+            for opaque in &mut self.asset_registry.opaque_models {
+                let meshes = opaque.iter(&self.device);
+                for mesh in meshes {
+                    let texture = mesh.color_texture.as_ref();
+                    let transform = &mesh.instance_transforms_buffer;
+                    let vertices = &mesh.vertex_buffer;
+                    let indices = &mesh.index_buffer;
+                    let vertex_count = mesh.vertex_count;
 
-                if let Some(index_buffer) = indices {
-                    render_pass
-                        .set_index_buffer(index_buffer.buffer.slice(..), index_buffer.format);
-                    render_pass.draw_indexed(0..vertices.count, 0, 0..1);
-                } else {
-                    render_pass.draw(0..vertices.count, 0..1);
-                }
-            }
-        }
+                    // Vertices
+                    render_pass.set_vertex_buffer(0, vertices.slice(..));
+                    // Transforms for each instance
+                    render_pass.set_vertex_buffer(1, transform.slice(..));
 
-        {
-            use crate::render::asset_store::{
-                Albedo, Indices, TextureBindGroup, Transparency, Vertices,
-            };
-            use bevy_ecs::query::Without;
-            type Query<'a> = (&'a Vertices, &'a Albedo, Option<&'a Indices>);
+                    if let Some(texture) = texture {
+                        render_pass.set_bind_group(1, texture, &[]);
+                    }
 
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Object Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: true,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_texture.view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: true,
-                    }),
-                    stencil_ops: None,
-                }),
-            });
-
-            render_pass.set_pipeline(&self.albedo_pipeline.pipeline);
-            render_pass.set_bind_group(1, self.camera.bind_group(), &[]);
-
-            for (vertices, _albedo, indices) in self
-                .asset_world
-                .world
-                .query_filtered::<Query, (Without<TextureBindGroup>, Without<Transparency>)>()
-                .iter(&self.asset_world.world)
-            {
-                render_pass.set_bind_group(0, &vertices.transform_bind_group, &[]);
-
-                render_pass.set_vertex_buffer(0, vertices.buffer.slice(..));
-
-                if let Some(index_buffer) = indices {
-                    render_pass
-                        .set_index_buffer(index_buffer.buffer.slice(..), index_buffer.format);
-                    render_pass.draw_indexed(0..vertices.count, 0, 0..1);
-                } else {
-                    render_pass.draw(0..vertices.count, 0..1);
+                    if let Some(index_buffer) = indices {
+                        render_pass
+                            .set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                        render_pass.draw_indexed(0..vertex_count, 0, 0..mesh.instance_count);
+                    } else {
+                        render_pass.draw(0..vertex_count, 0..mesh.instance_count);
+                    }
                 }
             }
         }

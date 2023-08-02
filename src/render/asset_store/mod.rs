@@ -1,139 +1,346 @@
-mod load;
-mod types;
+use std::path::Path;
 
-pub use load::load_scenes;
-pub use types::{Mesh, MeshPrimitive, Scene, Texture, Vertex};
-
-use bevy_ecs::prelude::*;
 use wgpu::util::DeviceExt;
 
-#[derive(Component)]
-pub struct Vertices {
-    pub count: u32,
-    pub buffer: wgpu::Buffer,
-    pub transform_bind_group: wgpu::BindGroup,
+use crate::{
+    render::asset_store::{
+        material::Material,
+        mesh::{Aabb, Mesh},
+        node_layout::NodeLayout,
+    },
+    render::Texture,
+    utils::load_file_buffer,
+};
 
-    #[cfg(feature = "debug_gltf")]
-    pub name: Option<String>,
+mod material;
+mod mesh;
+mod mesh_tangent;
+mod node_layout;
+mod utils;
+mod world;
+
+pub use material::TextureInfo;
+pub use mesh::PrimitiveVertex;
+pub use node_layout::{MeshIndex, NodeIndex};
+pub use world::AssetRegistry;
+
+#[derive(Debug, Clone)]
+#[cfg(feature = "debug_gltf")]
+pub struct ModelMetadata {
+    pub name: String,
+    pub path: String,
+    pub scene_count: usize,
+    pub mesh_count: usize,
+    pub texture_count: usize,
+    pub animation_count: usize,
+    pub skin_count: usize,
+    pub material_count: usize,
+    pub node_count: usize,
+    // camera_count: usize,
+    // light_count: usize,
 }
 
-#[derive(Component)]
-pub struct Indices {
-    pub buffer: wgpu::Buffer,
-    pub format: wgpu::IndexFormat,
-}
+#[cfg(feature = "debug_gltf")]
+impl ModelMetadata {
+    pub fn new<P: AsRef<Path>>(path: P, gltf: &gltf::Document) -> Self {
+        let name = path.as_ref().file_name().unwrap().to_str().unwrap();
+        let path = path.as_ref().to_str().unwrap();
 
-#[derive(Component)]
-pub struct Color {
-    pub color: [f32; 4],
-}
+        let scene_count = gltf.scenes().len();
+        let mesh_count = gltf.meshes().len();
+        let texture_count = gltf.textures().len();
+        let animation_count = gltf.animations().len();
+        let skin_count = gltf.skins().len();
+        let material_count = gltf.materials().len();
+        let node_count = gltf.nodes().len();
+        // let camera_count = gltf.cameras().len();
+        // let light_count = gltf.lights().len();
 
-#[derive(Component)]
-pub struct Albedo {
-    pub albedo: [f32; 4],
-    pub metallic: f32,
-    pub roughness: f32,
-}
-
-#[derive(Component)]
-pub struct TextureBindGroup {
-    pub texture: gltf::image::Data,
-    pub bind_group: wgpu::BindGroup,
-}
-
-#[derive(Component)]
-pub struct Transparency;
-
-#[derive(Default)]
-pub struct AssetWorld {
-    pub world: World,
-}
-
-fn create_index(mesh_primitive: &MeshPrimitive, device: &wgpu::Device) -> Option<Indices> {
-    use wgpu::IndexFormat::{Uint16, Uint32};
-
-    let indices = mesh_primitive.indices.as_ref()?;
-
-    if mesh_primitive.vertices.len() > u16::MAX as usize {
-        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(indices.as_slice()),
-            usage: wgpu::BufferUsages::INDEX,
-        });
-
-        Some(Indices {
-            buffer,
-            format: Uint32,
-        })
-    } else {
-        let indices = indices
-            .iter()
-            .map(|i| u16::try_from(*i).unwrap())
-            .collect::<Vec<u16>>();
-        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(indices.as_slice()),
-            usage: wgpu::BufferUsages::INDEX,
-        });
-
-        Some(Indices {
-            buffer,
-            format: Uint16,
-        })
+        Self {
+            name: String::from(name),
+            path: String::from(path),
+            scene_count,
+            mesh_count,
+            texture_count,
+            animation_count,
+            skin_count,
+            material_count,
+            node_count,
+            // camera_count,
+            // light_count,
+        }
     }
 }
 
-impl AssetWorld {
-    pub fn new(scenes: &mut [Scene], device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
-        let mut world = World::default();
+pub struct Model {
+    index: usize,
 
-        let mut mesh_primitives = scenes
-            .iter_mut()
-            .flat_map(|scene| {
-                scene
-                    .nodes
-                    .drain(..)
-                    .flat_map(|node| node.into_iter().collect::<Vec<_>>())
-                    .collect::<Vec<_>>()
+    #[cfg(feature = "debug_gltf")]
+    metadata: ModelMetadata,
+    packed_primitives: PackedPrimitives,
+    textures: Vec<Texture>,
+
+    cached_model_render: Vec<Option<ModelRender>>,
+}
+
+pub struct ModelRender {
+    #[cfg(feature = "debug_gltf")]
+    pub metadata: ModelMetadata,
+
+    pub instance_transforms_buffer: wgpu::Buffer,
+    pub instance_count: u32,
+
+    pub vertex_buffer: wgpu::Buffer,
+    pub index_buffer: Option<wgpu::Buffer>,
+
+    pub color_texture: Option<wgpu::BindGroup>,
+
+    pub vertex_count: u32,
+}
+
+impl Model {
+    fn update_index(&mut self, device: &wgpu::Device, index: usize) {
+        if let Some(_cached) = &self.cached_model_render[index] {
+            return; // TODO: check if the model has changed
+        }
+
+        let mesh = &self.packed_primitives.per_primitives[index];
+        // let vertex_range = mesh.vertex_range.0 as u64..mesh.vertex_range.1 as u64;
+        // let index_range = mesh.index_range.0 as u64..mesh.index_range.1 as u64;
+
+        // TODO: FIX use global vertex buffer
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            contents: bytemuck::cast_slice(&mesh.staging_vertex),
+            label: Some("Vertex Buffer"),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        let index_buffer = mesh.staging_index.as_ref().map(|indices| {
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                contents: bytemuck::cast_slice(&indices),
+                label: Some("Index Buffer"),
+                usage: wgpu::BufferUsages::INDEX,
             })
+        });
+
+        let instance_transforms_buffer =
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Instance Transform Buffer"),
+                contents: bytemuck::cast_slice(&mesh.instance_transforms),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+
+        let color_texture = mesh.material.color_texture.map(|color_texture| {
+            let color_texture = &self.textures[color_texture.texture_index];
+            color_texture.create_bind_group(device)
+        });
+
+        let vertex_count = if mesh.staging_index.is_some() {
+            mesh.index_range.1 - mesh.index_range.0
+        } else {
+            mesh.vertex_range.1 - mesh.vertex_range.0
+        };
+        let vertex_count = u32::try_from(vertex_count).expect("Not a valid vertex count");
+
+        let model_render = ModelRender {
+            #[cfg(feature = "debug_gltf")]
+            metadata: self.metadata.clone(),
+            instance_transforms_buffer,
+            instance_count: mesh.instance_count,
+            vertex_buffer,
+            index_buffer,
+            color_texture,
+            vertex_count,
+        };
+
+        self.cached_model_render[index] = Some(model_render);
+    }
+
+    pub fn iter(&mut self, device: &wgpu::Device) -> Vec<&ModelRender> {
+        if self.cached_model_render.len() != self.packed_primitives.per_primitives.len() {
+            self.cached_model_render
+                .resize_with(self.packed_primitives.per_primitives.len(), || None)
+        }
+
+        for i in 0..self.packed_primitives.per_primitives.len() {
+            self.update_index(device, i);
+        }
+
+        self.cached_model_render.iter().flatten().collect()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum ModelError {
+    InvalidPath,
+    InvalidGltf,
+
+    NoScene,
+}
+
+type Range = (usize, usize);
+
+#[cfg(feature = "debug_gltf")]
+pub struct PerPrimitiveMetadata {
+    pub mesh_name: Option<String>,
+}
+
+pub struct PerPrimitive {
+    #[cfg(feature = "debug_gltf")]
+    pub metadata: PerPrimitiveMetadata,
+
+    id: usize,
+    index_range: Range,
+    vertex_range: Range,
+
+    instance_transforms: Vec<glam::Mat4>,
+    instance_count: u32,
+
+    staging_index: Option<Vec<u32>>,
+    staging_vertex: Vec<PrimitiveVertex>,
+
+    material: Material,
+}
+
+impl PerPrimitive {
+    pub fn transform_desc() -> wgpu::VertexBufferLayout<'static> {
+        use wgpu::VertexAttribute;
+        const ATTRIBUTES: [VertexAttribute; 4] = wgpu::vertex_attr_array![
+            10 => Float32x4, 11 => Float32x4, 12 => Float32x4, 13 => Float32x4
+        ];
+
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<glam::Mat4>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes: &ATTRIBUTES,
+        }
+    }
+}
+
+struct PackedPrimitives {
+    index_buffer: wgpu::Buffer,
+    vertex_buffer: wgpu::Buffer,
+
+    per_primitives: Vec<PerPrimitive>,
+
+    aabb: Aabb,
+}
+
+static mut MODEL_INDEX: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+impl Model {
+    pub fn from_bytes<P: AsRef<Path>>(
+        path: P,
+        bytes: &[u8],
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Result<Self, ModelError> {
+        use ModelError::*;
+
+        let (gltf, buffers, images) = gltf::import_slice(bytes).map_err(|_| InvalidGltf)?;
+
+        if gltf.scenes().len() == 0 {
+            return Err(NoScene);
+        }
+
+        #[cfg(feature = "debug_gltf")]
+        let metadata = ModelMetadata::new(path, &gltf);
+
+        let node_layout = NodeLayout::from_gltf(gltf.nodes());
+        let meshes = gltf
+            .meshes()
+            .map(|mesh| Mesh::parse(&node_layout, &mesh, &buffers))
             .collect::<Vec<_>>();
 
-        for (mesh_primitive, transform) in &mut mesh_primitives {
-            mesh_primitive.create_texture_and_vertex_buffers(device, queue, *transform);
+        let mut index_offset = 0;
+        let mut vertex_offset = 0;
+        let mut per_primitives = Vec::new();
+        let mut global_indices = Vec::new();
+        let mut global_vertices = Vec::new();
+        let mut textures = Vec::with_capacity(images.len());
+        let mut aabb = Aabb::ZERO;
 
-            let mut entity = world.spawn((
-                Vertices {
-                    count: mesh_primitive.index_count,
-                    buffer: mesh_primitive.vertex_buffer.take().unwrap(),
-                    transform_bind_group: mesh_primitive.transform_bind_group.take().unwrap(),
+        for mesh in meshes {
+            aabb = aabb.union(&mesh.aabb);
 
+            for primitive in mesh.primitives.into_iter() {
+                let index_count = primitive.indices.as_ref().map(|vec| vec.len()).unwrap_or(0);
+                let vertex_count = primitive.vertices.len();
+
+                let index_range = (index_offset, index_offset + index_count);
+                let vertex_range = (vertex_offset, vertex_offset + vertex_count);
+
+                index_offset += index_count;
+                vertex_offset += vertex_count;
+
+                global_vertices.extend_from_slice(&primitive.vertices);
+                if let Some(indices) = &primitive.indices {
+                    global_indices.extend_from_slice(&indices);
+                }
+
+                let primitive = PerPrimitive {
                     #[cfg(feature = "debug_gltf")]
-                    name: mesh_primitive.name.take(),
-                },
-                Albedo {
-                    albedo: mesh_primitive.material.base_albedo,
-                    metallic: mesh_primitive.material.base_metallic,
-                    roughness: mesh_primitive.material.base_roughness,
-                },
-            ));
-
-            if let Some(indices) = create_index(mesh_primitive, device) {
-                entity.insert(indices);
-            }
-
-            if let Some(texture) = &mesh_primitive.material.texture {
-                entity.insert(TextureBindGroup {
-                    texture: texture.0.clone(),
-                    bind_group: mesh_primitive.texture_bind_group.take().unwrap(),
-                });
-            }
-
-            if mesh_primitive.material.blend_mode == wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING
-            {
-                entity.insert(Transparency);
+                    metadata: PerPrimitiveMetadata {
+                        mesh_name: mesh.name.clone(),
+                    },
+                    id: primitive.index,
+                    index_range,
+                    vertex_range,
+                    staging_index: primitive.indices,
+                    staging_vertex: primitive.vertices,
+                    material: primitive.material.clone(),
+                    instance_transforms: primitive.instance_transforms,
+                    instance_count: primitive.instance_count,
+                };
+                per_primitives.push(primitive);
             }
         }
 
-        Self { world }
+        for image in images {
+            let texture = Texture::create_texture_from_image(device, queue, &image);
+            textures.push(texture);
+        }
+
+        let global_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(&global_vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        let global_index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(&global_indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+
+        let packed_primitives = PackedPrimitives {
+            index_buffer: global_index_buffer,
+            vertex_buffer: global_vertex_buffer,
+            per_primitives,
+            aabb,
+        };
+
+        Ok(Model {
+            index: unsafe { MODEL_INDEX.fetch_add(1, std::sync::atomic::Ordering::Relaxed) },
+
+            #[cfg(feature = "debug_gltf")]
+            metadata,
+            packed_primitives,
+            textures,
+
+            cached_model_render: Vec::new(),
+        })
+    }
+
+    pub async fn from_path<P: AsRef<Path>>(
+        path: P,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Result<Model, ModelError> {
+        use ModelError::*;
+
+        #[cfg(feature = "debug_gltf")]
+        log::info!("⏹ Loading gltf file: {:?}", path.as_ref());
+
+        let file_buffer = load_file_buffer(&path).await.map_err(|_| InvalidPath)?;
+        Self::from_bytes(&path, &file_buffer, device, queue)
     }
 }

@@ -3,7 +3,7 @@ fn init_log() {
     env_logger::builder()
         .filter_level(log::LevelFilter::Warn)
         .filter_module("mario_skurt", log::LevelFilter::Info)
-        .format_timestamp(None)
+        .format_target(false)
         .init();
 }
 
