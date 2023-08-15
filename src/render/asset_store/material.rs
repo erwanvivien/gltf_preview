@@ -42,6 +42,8 @@ pub struct MetallicRoughness {
 
 #[derive(Clone, Debug)]
 pub struct Material {
+    #[cfg(feature = "debug_gltf")]
+    pub name: Option<String>,
     pub color: [f32; 4],
     pub emissive: [f32; 3],
     pub occlusion: f32,
@@ -83,6 +85,8 @@ impl<'a> From<gltf::Material<'a>> for Material {
         let double_sided = material.double_sided();
 
         Material {
+            #[cfg(feature = "debug_gltf")]
+            name: material.name().map(ToOwned::to_owned),
             color,
             emissive,
             occlusion,
