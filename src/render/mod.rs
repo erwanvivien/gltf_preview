@@ -3,7 +3,7 @@ use winit::{dpi::PhysicalSize, window::Window};
 
 pub use crate::render::texture::Texture;
 
-use self::render_pipeline::{AlbedoPipeline, TexturePipeline};
+use self::render_pipeline::TexturePipeline;
 
 mod asset_store;
 mod camera;
@@ -26,7 +26,6 @@ pub struct DrawingContext {
 
     asset_registry: asset_store::AssetRegistry,
     texture_pipeline: TexturePipeline,
-    albedo_pipeline: AlbedoPipeline,
 
     fill_color: wgpu::Color,
     /// Window has a dimension of 0
@@ -127,7 +126,6 @@ impl DrawingContext {
             camera.bind_group_layout(),
             Texture::color_texture_bind_group_layout(&device),
         );
-        let albedo_pipeline = AlbedoPipeline::new(&device, &config, camera.bind_group_layout());
 
         let depth_texture = Texture::create_depth_texture(&device, &config);
 
@@ -155,7 +153,6 @@ impl DrawingContext {
 
             asset_registry,
             texture_pipeline,
-            albedo_pipeline,
 
             fill_color,
             minimized: false,
