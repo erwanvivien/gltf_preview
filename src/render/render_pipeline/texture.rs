@@ -28,7 +28,7 @@ impl TexturePipeline {
         #[cfg(feature = "debug_gpu")]
         log::info!("Creating texture pipeline");
 
-        let main_shader = get_shader("texture_shader");
+        let main_shader = get_shader("main_shader");
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
