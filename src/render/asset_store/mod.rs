@@ -205,7 +205,7 @@ impl PerPrimitive {
     pub fn transform_desc() -> wgpu::VertexBufferLayout<'static> {
         use wgpu::VertexAttribute;
         const ATTRIBUTES: [VertexAttribute; 4] = wgpu::vertex_attr_array![
-            10 => Float32x4, 11 => Float32x4, 12 => Float32x4, 13 => Float32x4
+            11 => Float32x4, 12 => Float32x4, 13 => Float32x4, 14 => Float32x4
         ];
 
         wgpu::VertexBufferLayout {

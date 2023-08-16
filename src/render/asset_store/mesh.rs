@@ -1,7 +1,8 @@
 #[cfg(feature = "debug_gltf")]
 use crate::render::asset_store::utils::indent;
-use crate::render::asset_store::{
-    material::Material, mesh_tangent::generate_tangents, MeshIndex, NodeLayout,
+use crate::render::{
+    asset_store::{material::Material, mesh_tangent::generate_tangents, MeshIndex, NodeLayout},
+    shaders::kind::ShaderKinds,
 };
 
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -58,15 +59,17 @@ pub struct PrimitiveVertex {
     pub weights: glam::Vec4,
     pub joints: glam::UVec4,
     pub color: glam::Vec4,
+    pub shader_kinds: ShaderKinds,
+    _padding_2: [f32; 3],
 }
 
 impl PrimitiveVertex {
     pub const fn desc() -> wgpu::VertexBufferLayout<'static> {
-        const ATTRIBUTES: [wgpu::VertexAttribute; 10] = wgpu::vertex_attr_array![
+        const ATTRIBUTES: [wgpu::VertexAttribute; 11] = wgpu::vertex_attr_array![
             0 => Float32x3, 1 => Float32, 2 => Float32x3,
             3 => Float32, 4 => Float32x2, 5 => Float32x2,
             6 => Float32x4, 7 => Float32x4, 8 => Uint32x4,
-            9 => Float32x4
+            9 => Float32x4, 10 => Uint32
         ];
 
         wgpu::VertexBufferLayout {
@@ -83,7 +86,7 @@ impl PrimitiveVertex {
                 V4: Into<glam::Vec4> + Copy, U4: Into<glam::UVec4> + Copy>(
         position: V3, normal: V3, tex_coord_0: V2,
         tex_coord_1: V2, tangent: V4, weights: V4,
-        joints: U4, color: V4,
+        joints: U4, color: V4, shader_kinds: ShaderKinds
     ) -> Self {
         Self {
             position: position.into(),
@@ -94,8 +97,10 @@ impl PrimitiveVertex {
             weights: weights.into(),
             joints: joints.into(),
             color: color.into(),
+            shader_kinds,
             _padding_0: 0.0,
             _padding_1: 0.0,
+            _padding_2: [0.0; 3],
         }
     }
 }
@@ -150,69 +155,6 @@ impl Mesh {
         let mut global_aabb = Aabb::ZERO;
 
         for primitive in mesh.primitives() {
-            let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
-
-            let aabb = {
-                let bounds = primitive.bounding_box();
-                let min = bounds.min.into();
-                let max = bounds.max.into();
-
-                Aabb { min, max }
-            };
-
-            global_aabb = global_aabb.union(&aabb);
-
-            let positions = read_positions(&reader);
-            let positions_len = positions.len();
-
-            let model_normals = read_normals(&reader);
-            let has_normals = model_normals.is_some();
-            let normals = model_normals
-                .unwrap_or_else(|| vec![PrimitiveVertex::DEFAULT_NORMAL; positions_len]);
-
-            let model_tangents = read_tangents(&reader);
-            let has_tangents = model_tangents.is_some();
-            let tangents = model_tangents
-                .unwrap_or_else(|| vec![PrimitiveVertex::DEFAULT_TANGENT; positions_len]);
-
-            let model_tex_coords_0 = read_tex_coords(&reader, 0);
-            let has_tex_coords = model_tex_coords_0.is_some();
-            let tex_coords_0 = model_tex_coords_0
-                .unwrap_or_else(|| vec![PrimitiveVertex::DEFAULT_TEX; positions_len]);
-
-            let tex_coords_1 = read_tex_coords(&reader, 1)
-                .unwrap_or_else(|| vec![PrimitiveVertex::DEFAULT_TEX; positions_len]);
-
-            let weights = read_weights(&reader)
-                .unwrap_or_else(|| vec![PrimitiveVertex::DEFAULT_WEIGHTS; positions_len]);
-
-            let joints = read_joints(&reader)
-                .unwrap_or_else(|| vec![PrimitiveVertex::DEFAULT_JOINTS; positions_len]);
-
-            let colors = read_colors(&reader)
-                .unwrap_or_else(|| vec![PrimitiveVertex::DEFAULT_COLOR; positions_len]);
-
-            let mut vertices = Vec::with_capacity(positions.len());
-            for i in 0..positions.len() {
-                vertices.push(PrimitiveVertex::new(
-                    positions[i],
-                    normals[i],
-                    tex_coords_0[i],
-                    tex_coords_1[i],
-                    tangents[i],
-                    weights[i],
-                    joints[i],
-                    colors[i],
-                ));
-            }
-
-            let indices = read_indices(&reader);
-            if !positions.is_empty() && has_normals && has_tex_coords && !has_tangents {
-                generate_tangents(indices.as_ref(), &mut vertices);
-            } else {
-                log::warn!("Mesh#{}: Failed tangent generation", mesh.index());
-            }
-
             let index = unsafe { PRIMITIVE_COUNT.fetch_add(1, Ordering::Relaxed) };
             let material: Material = primitive.material().into();
 
@@ -226,6 +168,96 @@ impl Mesh {
                 .collect::<Vec<_>>();
             let instance_count =
                 u32::try_from(instance_transforms.len()).expect("Instance count overflow");
+
+            let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+
+            let aabb = {
+                let bounds = primitive.bounding_box();
+                let min = bounds.min.into();
+                let max = bounds.max.into();
+
+                Aabb { min, max }
+            };
+
+            global_aabb = global_aabb.union(&aabb);
+
+            let mut shader_kinds = ShaderKinds::NONE;
+
+            let positions = read_positions(&reader);
+            let positions_len = positions.len();
+
+            let normals = read_normals(&reader);
+            let tangents = read_tangents(&reader);
+            let tex_coords_0 = read_tex_coords(&reader, 0);
+            let tex_coords_1 = read_tex_coords(&reader, 1);
+            let weights = read_weights(&reader);
+            let joints = read_joints(&reader);
+            let colors = read_colors(&reader);
+
+            let has_normals = (normals.is_some(), ShaderKinds::NORMAL);
+            let has_tangents = (tangents.is_some(), ShaderKinds::TANGENT);
+            let has_tex_coords_0 = (tex_coords_0.is_some(), ShaderKinds::TEX_COORD_0);
+            let has_tex_coords_1 = (tex_coords_1.is_some(), ShaderKinds::TEX_COORD_1);
+            let has_weights = (weights.is_some(), ShaderKinds::WEIGHT);
+            let has_joints = (joints.is_some(), ShaderKinds::JOINT);
+            let has_colors = (colors.is_some(), ShaderKinds::COLOR);
+
+            #[rustfmt::skip]
+            let has_kind = [
+                has_normals, has_tangents, has_tex_coords_0,
+                has_tex_coords_1, has_weights, has_joints, has_colors,
+            ];
+            for (has, kind) in has_kind {
+                if has {
+                    shader_kinds = shader_kinds | kind;
+                }
+            }
+
+            // TODO: Remove this hack
+            if material.color != [1f32; 4] {
+                shader_kinds = shader_kinds | ShaderKinds::COLOR;
+            }
+
+            let normals =
+                normals.unwrap_or_else(|| vec![PrimitiveVertex::DEFAULT_NORMAL; positions_len]);
+            let tangents =
+                tangents.unwrap_or_else(|| vec![PrimitiveVertex::DEFAULT_TANGENT; positions_len]);
+            let tex_coords_0 =
+                tex_coords_0.unwrap_or_else(|| vec![PrimitiveVertex::DEFAULT_TEX; positions_len]);
+            let tex_coords_1 =
+                tex_coords_1.unwrap_or_else(|| vec![PrimitiveVertex::DEFAULT_TEX; positions_len]);
+            let weights =
+                weights.unwrap_or_else(|| vec![PrimitiveVertex::DEFAULT_WEIGHTS; positions_len]);
+            let joints =
+                joints.unwrap_or_else(|| vec![PrimitiveVertex::DEFAULT_JOINTS; positions_len]);
+            let colors = colors.unwrap_or_else(|| vec![material.color; positions_len]);
+
+            let mut vertices = Vec::with_capacity(positions.len());
+            for i in 0..positions.len() {
+                vertices.push(PrimitiveVertex::new(
+                    positions[i],
+                    normals[i],
+                    tex_coords_0[i],
+                    tex_coords_1[i],
+                    tangents[i],
+                    weights[i],
+                    joints[i],
+                    colors[i],
+                    shader_kinds,
+                ));
+            }
+
+            let indices = read_indices(&reader);
+            if !positions.is_empty()
+                && shader_kinds.is_normal()
+                && shader_kinds.is_tex_coord()
+                && !shader_kinds.is_tangent()
+            {
+                generate_tangents(indices.as_ref(), &mut vertices);
+            } else {
+                #[cfg(feature = "debug_gltf")]
+                log::warn!("Mesh#{}: Failed tangent generation", mesh.index());
+            }
 
             let primitive = Primitive {
                 index,
