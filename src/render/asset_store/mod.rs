@@ -199,6 +199,9 @@ pub struct PerPrimitive {
     staging_vertex: Vec<PrimitiveVertex>,
 
     material: Material,
+
+    #[cfg(feature = "debug_gltf")]
+    instance_node_indices: Vec<NodeIndex>,
 }
 
 impl PerPrimitive {
@@ -290,6 +293,9 @@ impl Model {
                     material: primitive.material.clone(),
                     instance_transforms: primitive.instance_transforms,
                     instance_count: primitive.instance_count,
+
+                    #[cfg(feature = "debug_gltf")]
+                    instance_node_indices: primitive.instance_node_indices,
                 };
                 per_primitives.push(primitive);
             }

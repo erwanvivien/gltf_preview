@@ -1,7 +1,9 @@
 #[cfg(feature = "debug_gltf")]
 use crate::render::asset_store::utils::indent;
 use crate::render::{
-    asset_store::{material::Material, mesh_tangent::generate_tangents, MeshIndex, NodeLayout},
+    asset_store::{
+        material::Material, mesh_tangent::generate_tangents, MeshIndex, NodeIndex, NodeLayout,
+    },
     shaders::kind::ShaderKinds,
 };
 
@@ -122,6 +124,9 @@ pub struct Primitive {
     pub aabb: Aabb,
     pub instance_transforms: Vec<glam::Mat4>,
     pub instance_count: u32,
+
+    #[cfg(feature = "debug_gltf")]
+    pub instance_node_indices: Vec<NodeIndex>,
 }
 
 pub struct Mesh {
@@ -267,6 +272,9 @@ impl Mesh {
                 aabb,
                 instance_transforms,
                 instance_count,
+
+                #[cfg(feature = "debug_gltf")]
+                instance_node_indices: mesh_nodes.clone(),
             };
             primitives.push(primitive);
         }
