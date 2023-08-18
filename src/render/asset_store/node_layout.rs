@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use crate::render::asset_store::animation::{Animation, Channel};
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct MeshIndex(pub u32);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -14,6 +16,8 @@ pub(super) struct NodeData {
     transform_global: glam::Mat4,
     parent: Option<NodeIndex>,
     children_index: Vec<NodeIndex>,
+
+    animation_channel: Vec<Channel>,
 }
 
 impl std::fmt::Debug for NodeData {
@@ -50,7 +54,11 @@ pub struct NodeLayout {
 }
 
 impl NodeLayout {
-    pub fn from_gltf(gltf_nodes: gltf::iter::Nodes) -> Self {
+    pub fn from_gltf(
+        gltf_nodes: gltf::iter::Nodes,
+        gltf_animation: gltf::iter::Animations,
+        buffers: &[gltf::buffer::Data],
+    ) -> Self {
         let mut mesh_nodes = HashMap::<_, Vec<_>>::new();
         let mut node_mesh = HashMap::new();
         let mut nodes = Vec::new();
@@ -89,11 +97,24 @@ impl NodeLayout {
                 transform_global,
                 parent: None,
                 children_index,
+
+                animation_channel: Vec::new(),
             });
         }
 
         for node in &mut nodes {
             node.parent = parent.get(&node.index).copied();
+        }
+
+        let animations = gltf_animation
+            .map(|animation| Animation::parse(&animation, &buffers))
+            .collect::<Vec<_>>();
+
+        for animation in animations {
+            for channel in animation.channels {
+                let index = usize::try_from(channel.node_index.0).expect("Child index overflow");
+                nodes[index].animation_channel.push(channel);
+            }
         }
 
         Self {
