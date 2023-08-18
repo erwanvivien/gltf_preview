@@ -138,4 +138,9 @@ impl NodeLayout {
 
         transform
     }
+
+    pub fn get_node_animations(&self, node_index: NodeIndex) -> &Vec<Channel> {
+        let index = usize::try_from(node_index.0).expect("Node index overflow");
+        &self.nodes[index].animation_channel
+    }
 }

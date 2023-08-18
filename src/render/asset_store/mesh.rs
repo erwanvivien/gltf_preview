@@ -2,7 +2,8 @@
 use crate::render::asset_store::utils::indent;
 use crate::render::{
     asset_store::{
-        material::Material, mesh_tangent::generate_tangents, MeshIndex, NodeIndex, NodeLayout,
+        animation::Channel, material::Material, mesh_tangent::generate_tangents, MeshIndex,
+        NodeIndex, NodeLayout,
     },
     shaders::kind::ShaderKinds,
 };
@@ -124,6 +125,7 @@ pub struct Primitive {
     pub aabb: Aabb,
     pub instance_transforms: Vec<glam::Mat4>,
     pub instance_count: u32,
+    pub instance_animations: Vec<Vec<Channel>>,
 
     #[cfg(feature = "debug_gltf")]
     pub instance_node_indices: Vec<NodeIndex>,
@@ -166,6 +168,12 @@ impl Mesh {
             let mesh_index = u32::try_from(mesh.index()).expect("Mesh index overflow");
             let mesh_index = MeshIndex(mesh_index);
             let mesh_nodes = node_layout.mesh_nodes.get(&mesh_index).unwrap();
+
+            let instance_animations = mesh_nodes
+                .iter()
+                // TODO: Try to remove the clone
+                .map(|node_index| node_layout.get_node_animations(*node_index).clone())
+                .collect::<Vec<_>>();
 
             let instance_transforms = mesh_nodes
                 .iter()
@@ -272,6 +280,7 @@ impl Mesh {
                 aabb,
                 instance_transforms,
                 instance_count,
+                instance_animations,
 
                 #[cfg(feature = "debug_gltf")]
                 instance_node_indices: mesh_nodes.clone(),
