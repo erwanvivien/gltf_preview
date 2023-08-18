@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use wgpu::{Adapter, Instance, Surface, TextureFormat};
 use winit::{dpi::PhysicalSize, window::Window};
 
@@ -13,6 +15,8 @@ mod texture;
 pub mod utils;
 
 pub struct DrawingContext {
+    time_start: Instant,
+
     surface: wgpu::Surface,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -140,6 +144,8 @@ impl DrawingContext {
         };
 
         Self {
+            time_start: Instant::now(),
+
             config,
             device,
             queue,
@@ -299,7 +305,7 @@ impl DrawingContext {
             render_pass.set_bind_group(0, self.camera.bind_group(), &[]);
 
             for opaque in &mut self.asset_registry.opaque_models {
-                let meshes = opaque.iter(&self.device);
+                let meshes = opaque.iter(&self.device, &self.time_start);
                 for mesh in meshes {
                     let texture = mesh.color_texture.as_ref();
                     let transform = &mesh.instance_transforms_buffer;

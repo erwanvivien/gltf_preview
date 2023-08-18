@@ -1,10 +1,10 @@
-use std::path::Path;
+use std::{path::Path, time::Instant};
 
 use wgpu::util::DeviceExt;
 
 use crate::{
     render::asset_store::{
-        animation::Animation,
+        animation::Channel,
         material::Material,
         mesh::{Aabb, Mesh},
         node_layout::NodeLayout,
@@ -101,12 +101,52 @@ pub struct ModelRender {
 }
 
 impl Model {
-    fn update_index(&mut self, device: &wgpu::Device, index: usize) {
-        if let Some(_cached) = &self.cached_model_render[index] {
-            return; // TODO: check if the model has changed
-        }
-
+    fn update_index(&mut self, device: &wgpu::Device, index: usize, start_time: &Instant) {
         let mesh = &self.packed_primitives.per_primitives[index];
+
+        // TODO: remove clone
+        let mut mesh_instance_transforms = mesh.instance_transforms.clone();
+
+        if let Some(_cached) = &self.cached_model_render[index] {
+            let mut cached = true;
+
+            let elapsed_time = start_time.elapsed().as_micros() as f32 / 1e6;
+
+            for (index, primitive_animations) in mesh.instance_animations.iter().enumerate() {
+                if primitive_animations.is_empty() {
+                    continue;
+                }
+
+                cached = false;
+
+                let mut node_transform = mesh_instance_transforms[index];
+
+                use animation::PropertyValue;
+                for animation_channel in primitive_animations {
+                    let interpolation = animation_channel.interpolate(elapsed_time);
+
+                    node_transform = match interpolation {
+                        PropertyValue::Rotation(rotation) => {
+                            node_transform * glam::Mat4::from_quat(rotation)
+                        }
+                        PropertyValue::Scale(scale) => {
+                            node_transform * glam::Mat4::from_scale(scale)
+                        }
+                        PropertyValue::Translation(translation) => {
+                            node_transform * glam::Mat4::from_translation(translation)
+                        }
+                        PropertyValue::MorphTargetWeights(_) => unimplemented!(),
+                    }
+                }
+
+                mesh_instance_transforms[index] = node_transform;
+            }
+
+            if cached {
+                return;
+            }
+        };
+
         // let vertex_range = mesh.vertex_range.0 as u64..mesh.vertex_range.1 as u64;
         // let index_range = mesh.index_range.0 as u64..mesh.index_range.1 as u64;
 
@@ -127,7 +167,7 @@ impl Model {
         let instance_transforms_buffer =
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Instance Transform Buffer"),
-                contents: bytemuck::cast_slice(&mesh.instance_transforms),
+                contents: bytemuck::cast_slice(&mesh_instance_transforms),
                 usage: wgpu::BufferUsages::VERTEX,
             });
 
@@ -157,14 +197,14 @@ impl Model {
         self.cached_model_render[index] = Some(model_render);
     }
 
-    pub fn iter(&mut self, device: &wgpu::Device) -> Vec<&ModelRender> {
+    pub fn iter(&mut self, device: &wgpu::Device, start_time: &Instant) -> Vec<&ModelRender> {
         if self.cached_model_render.len() != self.packed_primitives.per_primitives.len() {
             self.cached_model_render
                 .resize_with(self.packed_primitives.per_primitives.len(), || None)
         }
 
         for i in 0..self.packed_primitives.per_primitives.len() {
-            self.update_index(device, i);
+            self.update_index(device, i, start_time);
         }
 
         self.cached_model_render.iter().flatten().collect()
@@ -194,6 +234,7 @@ pub struct PerPrimitive {
     index_range: Range,
     vertex_range: Range,
 
+    instance_animations: Vec<Vec<Channel>>,
     instance_transforms: Vec<glam::Mat4>,
     instance_count: u32,
 
@@ -293,6 +334,7 @@ impl Model {
                     staging_index: primitive.indices,
                     staging_vertex: primitive.vertices,
                     material: primitive.material.clone(),
+                    instance_animations: primitive.instance_animations,
                     instance_transforms: primitive.instance_transforms,
                     instance_count: primitive.instance_count,
 
