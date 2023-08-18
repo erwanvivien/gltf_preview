@@ -4,6 +4,7 @@ use wgpu::util::DeviceExt;
 
 use crate::{
     render::asset_store::{
+        animation::Animation,
         material::Material,
         mesh::{Aabb, Mesh},
         node_layout::NodeLayout,
@@ -12,6 +13,7 @@ use crate::{
     utils::load_file_buffer,
 };
 
+mod animation;
 mod material;
 mod mesh;
 mod mesh_tangent;
@@ -248,7 +250,7 @@ impl Model {
         #[cfg(feature = "debug_gltf")]
         let metadata = ModelMetadata::new(path, &gltf);
 
-        let node_layout = NodeLayout::from_gltf(gltf.nodes());
+        let node_layout = NodeLayout::from_gltf(gltf.nodes(), gltf.animations(), &buffers);
         let meshes = gltf
             .meshes()
             .map(|mesh| Mesh::parse(&node_layout, &mesh, &buffers))
