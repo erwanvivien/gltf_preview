@@ -85,3 +85,8 @@ pub async fn load_file_string<P: AsRef<std::path::Path>>(
 ) -> Result<String, std::io::Error> {
     std::fs::read_to_string(&path)
 }
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use std::time::Instant;
+#[cfg(target_arch = "wasm32")]
+pub use web_time::Instant;
