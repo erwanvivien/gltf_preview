@@ -1,4 +1,4 @@
-use std::time::Instant;
+use crate::utils::Instant;
 
 use wgpu::{Adapter, Instance, Surface, TextureFormat};
 use winit::{dpi::PhysicalSize, window::Window};

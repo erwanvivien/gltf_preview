@@ -1,4 +1,5 @@
-use std::{path::Path, time::Instant};
+use crate::utils::Instant;
+use std::path::Path;
 
 use wgpu::util::DeviceExt;
 
