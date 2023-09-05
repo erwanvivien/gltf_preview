@@ -19,9 +19,9 @@ struct VertexInput {
     @location(5) tex_coords_1: vec2<f32>,
     @location(6) tangents: vec4<f32>,
     @location(7) weights: vec4<f32>,
-    @location(8) joints: vec4<u32>,
+    @location(8) @interpolate(flat) joints: vec4<u32>,
     @location(9) color: vec4<f32>,
-    @location(10) shader_kinds: u32,
+    @location(10) @interpolate(flat) shader_kinds: u32,
 };
 
 struct InstanceInput {
@@ -35,7 +35,7 @@ struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) tex_coords: vec2<f32>,
     @location(1) color: vec4<f32>,
-    @location(2) shader_kinds: u32,
+    @location(2) @interpolate(flat) shader_kinds: u32,
 };
 
 @group(0) @binding(0)
